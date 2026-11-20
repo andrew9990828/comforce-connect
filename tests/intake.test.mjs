@@ -16,6 +16,13 @@ test('only the selected contact method is validated', () => {
   assert.ok(validate({ ...draft, method: 'email' }).contact)
   assert.deepEqual(validate({ ...draft, method: 'email', contact: 'student@example.org' }), {})
 })
+test('family support plus transportation needs safe follow-up and accepts an optional agency', () => {
+  const family = { ...draft, services: ['family_support', 'transportation'], description: 'Coordinate a family callback and a ride.' }
+  assert.ok(validate(family).safeContact)
+  assert.deepEqual(validate({ ...family, safeContact: 'Text first, after 4.', agency: 'Demo partner' }), {})
+  assert.ok(validate({ ...family, safeContact: 'Text first', description: 'x'.repeat(501) }).description)
+  assert.deepEqual(validate({ ...draft, safeContact: '', agency: 'x'.repeat(121) }), {})
+})
 test('HTTP LAN submissions have distinct version 4 UUIDs', () => {
   const keys = Array.from({ length: 50 }, submissionKey)
   for (const key of keys) assert.match(key, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)

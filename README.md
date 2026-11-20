@@ -1,29 +1,64 @@
 # ComForce Connect
 
-Community Task Force MKE uses this local demo to follow a Milwaukee request from first contact to delivery. A request can include several needs, each with its own worker, referrals and outcome.
+Community Task Force MKE helps Milwaukee residents get food, rides and family support. This Hacksgiving demo follows a request from the first call, text or web submission through partner contact and confirmed delivery. Use fictional details throughout.
 
-| Route | What you can do |
+| Open on the demo laptop | What to try |
 | --- | --- |
-| `/` | Explore fictional monthly outcomes by neighborhood and service. |
-| `/request` | Request several services in one submission and receive a reference number. |
-| `/team` | Log calls and texts, assign work, follow up on referrals and confirm delivery. |
+| [Community impact](http://127.0.0.1:5173/) | Tap a neighborhood and change the month. The map, outcome totals and six-month trend update together. |
+| [Request help](http://127.0.0.1:5173/request) | Ask for multiple services and receive one reference. [Start with family support](http://127.0.0.1:5173/request?service=family_support). |
+| [Team workspace](http://127.0.0.1:5173/team) | Open a private fictional queue, pair a resident device, assign a worker and record a callback. |
 
-Start with the [Windows local development guide](docs/LOCAL_DEVELOPMENT.md). For branches and PRs, see [Contributing](CONTRIBUTING.md).
+Three routes share one React/Vite build. Each new browser gets its own copy of the synthetic seed. A paired resident link grants submission and aggregate access to the laptop’s workspace. The separate [verified staff entrance](http://127.0.0.1:5173/team?mode=staff) reads the original staff records.
 
 ```mermaid
 flowchart LR
-    Impact["/ · community impact"] -->|"poll every 3s while visible"| Summary["public_impact"]
-    Intake["/request · intake"] --> Submit["submit_request"]
-    Team["/team · staff"] -->|"poll every 2.5s while visible"| Queue["team_queue"]
-    Team --> Update["update_need"]
-    Summary & Submit & Queue & Update --> DB[(Supabase Postgres)]
-    Team -->|"email code"| Auth["Local Supabase Auth + Mailpit"]
+    Public["Impact and resident intake"] -->|"Resident credential"| API["Supabase Data API · scoped SQL functions"]
+    Demo["Team demo"] -->|"Workspace staff credential"| API
+    Demo -->|"Pair a resident device"| Public
+    Staff["Verified staff"] -->|"Email code"| Auth["Supabase Auth"]
+    Auth -->|"Staff session"| API
+    API -->|"Checked in Postgres"| DB[("Private case tables and fictional template")]
 ```
 
-**Reading impact.** A sent referral counts in the month it was sent. A need counts when delivery is confirmed. A request helped is one distinct request with at least one confirmed delivery in the selected scope. All three use Chicago dates. The figures describe recorded fictional activity.
+## Reading the atlas
 
-**Geography.** The map uses locally simplified boundaries from Milwaukee’s Department of City Development and ITMD-GIS. Section 3(b) of the City’s Open Data Policy places published datasets in the public domain. ComForce activities come from a separate fictional seed. [City neighborhood layer](https://milwaukeemaps.milwaukee.gov/arcgis/rest/services/AGO/neighborhoods/MapServer/0) · [Milwaukee Open Data Policy](https://city.milwaukee.gov/ImageLibrary/Groups/cityOpenData/MilwaukeeOpenDataPolicy.pdf)
+- **Reported by ComForce MKE.** The organization reports 10,000+ Milwaukee residents served and 300+ volunteers and partners. It gives no reporting period. Its Missing Persons Network provides family support. [Organization](https://www.comforcemilwaukee.com/) · [Programs](https://www.comforcemilwaukee.com/programs)
+- **Milwaukee historical context.** The city recorded 4,618 people reported missing to MPD in 2002 and 4,316 in 2004. A person can appear in multiple reports. These dated citywide snapshots measure reporting to police. [2002, p. 41](https://city.milwaukee.gov/ImageLibrary/Groups/cityFPC/Reports/2002PSAFETY.pdf#page=41) · [2004, p. 26](https://city.milwaukee.gov/ImageLibrary/Groups/cityFPC/Reports/2004PSAFETY.pdf#page=26)
+- **Interactive demo activity.** April–November 2026 history covers six neighborhoods. Requests helped counts distinct requests with at least one confirmed delivery. Referrals count when sent. Completed family callbacks count independently of fulfillment. All use the month of the event in Chicago.
+- Figure definitions and evidence are in [publishedFacts.ts](src/impact/publishedFacts.ts). The map uses public-domain City of Milwaukee neighborhood boundaries and Census hydrography. [City GIS](https://milwaukeemaps.milwaukee.gov/arcgis/rest/services/AGO/neighborhoods/MapServer/0) · [City data policy](https://city.milwaukee.gov/ImageLibrary/Groups/cityOpenData/MilwaukeeOpenDataPolicy.pdf) · [2025 Census TIGER/Line water, Milwaukee](https://www2.census.gov/geo/tiger/TIGER2025/AREAWATER/tl_2025_55079_areawater.zip) · [Ozaukee](https://www2.census.gov/geo/tiger/TIGER2025/AREAWATER/tl_2025_55089_areawater.zip)
 
-**Demo access.** Public visitors can submit a request and read aggregates. Only the verified local staff account can open case details and update needs. Its sign-in code is delivered to the developer’s local Mailpit inbox. Keep the stack on a trusted machine or LAN and use made-up contact details. A publicly accessible staff demo would need isolated workspaces or fixed sample inputs first.
+## Hosting checklist
 
-**Source credits.** Andrew Bieber supplied the brief and starter guides. Codex (GPT-6) implemented the application and tests. Two hand-authored JSON files omit comment headers. Codex configured dependencies and commands in `package.json` and compiler options in `tsconfig.json`. The map asset and npm lockfile are generated.
+### Supabase
+
+1. In [your Supabase dashboard](https://supabase.com/dashboard), select **New project**, choose your organization and create a dedicated project named **comforce-connect-demo**. Save the database password privately. Once ready, copy its project reference, HTTPS project URL and **publishable** key.
+2. From the approved checkout with dependencies installed, run the following against that project. Review the dry run before applying the schema. [Supabase migration guide](https://supabase.com/docs/guides/deployment/database-migrations)
+
+```sh
+npx supabase login
+npx supabase link --project-ref YOUR_PROJECT_REF
+npx supabase db push --dry-run
+npx supabase db push
+```
+
+3. Load demo data separately. In this project’s **SQL Editor**, run the contents of [demo_seed.sql](supabase/demo_seed.sql) once. Reruns preserve the template and all existing workspaces. The older [seed.sql](supabase/seed.sql) supplies the local verified-staff fixtures and is only needed for that local test setup.
+4. Keep the Data API enabled with `public` exposed and `comforce` private. Demo visitors need only the publishable key. Leave anonymous Auth sign-ins disabled. For optional verified staff, enable Email Auth and email confirmation, configure outbound mail, select a six-digit OTP, and include `{{ .Token }}` in both **Confirm signup** and **Magic link** email templates. Set the production Site URL to your Pages HTTPS address. Provision the staff Auth user or enable email signup. Add their verified lowercase address to `comforce.staff(email)` using the project SQL Editor. The database checks the confirmed user and allowlist on each staff operation. [API keys](https://supabase.com/docs/guides/getting-started/api-keys) · [Email OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless)
+
+### Cloudflare Pages
+
+After Andrew promotes the feature to `main`, choose **Workers & Pages → Create → Pages → Connect to Git** and select `andrew9990828/comforce-connect`. Use these production build settings. [Build settings](https://developers.cloudflare.com/pages/configuration/build-configuration/) · [Node version](https://developers.cloudflare.com/pages/configuration/build-image/)
+
+| Setting | Value |
+| --- | --- |
+| Production branch | `main` |
+| Root directory | Leave blank (repository root) |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Build environment | `NODE_VERSION=22.15.0` |
+| Public build variables | `VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co` and `VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_…` from the same project |
+
+Pages serves the three routes from `index.html` using its default SPA fallback. Browser requests go straight to the configured HTTPS Supabase project. Rebuild after changing a Vite variable. [Pages routing](https://developers.cloudflare.com/pages/configuration/serving-pages/)
+
+**Hosted smoke test, pending deployment.** On the laptop open the assigned `pages.dev/team` URL and pair the phone. On cellular, open the resident link, request family support and a ride, then record a callback on the laptop. Refresh Impact, Request help and the team case directly. Check that the callback increases once, transportation stays open and the atlas receives only monthly neighborhood totals. In a clean browser, paste the first case’s team URL and verify it is unavailable. See [local checks and pairing](docs/LOCAL_DEVELOPMENT.md) and [the PR workflow](CONTRIBUTING.md).
+
+Andrew Bieber supplied the brief and starter guides. OpenAI Codex (GPT-6) implemented the application, SQL, tests and presentation guides. The JSON package and TypeScript configurations omit inline credits. The bundled map geometry and npm lockfile are generated.

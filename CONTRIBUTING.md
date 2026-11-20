@@ -31,6 +31,6 @@ git push -u origin HEAD
 gh pr create --base integration --head feature/request-intake --title "Add multi-need request intake" --body "Adds multi-service requests. Tested with npm test and npm run build."
 ```
 
-Replace the example paths, branch, change description and checks with your own. In the GitHub web interface, choose **base** `integration` and **compare** `feature/request-intake`. Say what changed and how you tested it.
+Replace the example paths, branch, change description and checks with your own. In the GitHub web interface, choose **base** `integration` and **compare** your feature branch. For this MVP the compare branch is `feature/comforce-mvp`. Include the paired-device story you ran and distinguish browser emulation from physical-device checks.
 
 If your branch falls behind, commit or otherwise preserve local edits, then run `git fetch origin` and `git merge origin/integration` on your feature branch. Resolve conflicts, repeat the affected checks, and push. Andrew opens and merges the release PR from `integration` to `main` after the demo passes.

@@ -7,12 +7,20 @@ export interface IntakeDraft {
   neighborhood: string
   method: ContactMethod
   contact: string
+  safeContact?: string
+  agency?: string
+  agencyReference?: string
 }
 export function validate(draft: IntakeDraft) {
   const errors: Partial<Record<keyof IntakeDraft, string>> = {}
   if (!draft.services.length) errors.services = 'Choose at least one service.'
-  if (!draft.description.trim()) errors.description = 'Describe the help needed in a sentence or two.'
-  else if (draft.description.trim().length > 800) errors.description = 'Keep the description to 800 characters or fewer.'
+  const family = draft.services.includes('family_support')
+  const maxDescription = family ? 500 : 800
+  if (!draft.description.trim()) errors.description = family ? 'Tell us what support your family wants.' : 'Describe the help needed in a sentence or two.'
+  else if (draft.description.trim().length > maxDescription) errors.description = `Keep the description to ${maxDescription} characters or fewer.`
+  if (family && (!draft.safeContact?.trim() || draft.safeContact.trim().length > 300)) errors.safeContact = 'Give a safe time or way to follow up, in 300 characters or fewer.'
+  if (family && (draft.agency?.trim().length ?? 0) > 120) errors.agency = 'Keep the partner or agency name to 120 characters or fewer.'
+  if (family && (draft.agencyReference?.trim().length ?? 0) > 80) errors.agencyReference = 'Keep the reference to 80 characters or fewer.'
   if (!draft.neighborhood) errors.neighborhood = 'Choose a neighborhood or select Unknown.'
   const contact = draft.contact.trim()
   if (draft.method === 'email') {

@@ -1,56 +1,104 @@
-// Neighborhood choropleth. Codex (GPT-6) linked simplified municipal boundaries to confirmed demo deliveries.
+// Milwaukee neighborhood atlas. Codex (GPT-6) composed the City boundaries with locally simplified Census TIGER/Line water geometry.
+import { useEffect, useRef, useState } from 'react'
 import geography from './milwaukee.json'
+import water from './water.json'
 
 const levels = [
-  { label: '0', color: '#e0e9dc' }, { label: '1', color: '#9bcdbc' },
-  { label: '2–3', color: '#479c88' }, { label: '4+', color: '#106957' },
+  { label: '0', color: '#fbf5d9' },
+  { label: '1', color: '#a8dfc6' },
+  { label: '2–3', color: '#48af8b' },
+  { label: '4+', color: '#08705d' },
 ]
-// Labels are offset from polygon centroids to make adjacent neighborhoods readable.
-const labels = {
-  'Bay View': [249, 351], Harambee: [151, 208], 'Lincoln Park': [127, 128],
-  Riverwest: [250, 193], 'Silver City': [104, 305], "Walker's Point": [231, 275],
-}
 type Area = keyof typeof geography.areas
+// Labels sit on either side of the city, with leaders ending inside the named neighborhood.
+const labels: Record<Area, [number, number, 'start' | 'end']> = {
+  'Lincoln Park': [109, 126, 'end'], 'Riverwest': [243, 180, 'start'],
+  'Harambee': [122, 210, 'end'], "Walker's Point": [236, 258, 'start'],
+  'Silver City': [92, 302, 'end'], 'Bay View': [259, 341, 'start'],
+}
+const areas = Object.keys(labels) as Area[]
+const number = new Intl.NumberFormat('en-US')
 
 interface MapProps {
   selected: string
+  periodLabel: string
   counts: Record<string, number> | null
+  total: number | null
   choose: (name: string) => void
 }
 
-export default function NeighborhoodMap({ selected, counts, choose }: MapProps) {
-  return <figure className="impact-map">
-    <div className="impact-canvas">
-      <svg viewBox="-55 -18 433 494" aria-hidden="true" focusable="false">
-        <path d={geography.context} className="impact-context" />
-        {(Object.keys(geography.areas) as Area[]).map(name => {
-          const { d } = geography.areas[name]
+export default function NeighborhoodMap({ selected, periodLabel, counts, total, choose }: MapProps) {
+  const frame = useRef<HTMLDivElement>(null)
+  const [span, setSpan] = useState(620)
+  useEffect(() => {
+    const el = frame.current
+    if (!el) return
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      if (height > 0) setSpan(width / height * 487)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+  const xMin = 151 - span / 2
+  return <figure className="atlas-map">
+    <div className="atlas-map-frame" ref={frame}>
+      <svg className="atlas-cartography" viewBox={`${xMin} -16 ${span} 487`} preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+        <defs>
+          <pattern id="atlas-field" width="28" height="28" patternUnits="userSpaceOnUse">
+            <path d="M28 0H0V28" fill="none" stroke="#9bafa1" strokeWidth=".55" opacity=".46" />
+          </pattern>
+          <pattern id="atlas-waves" width="22" height="14" patternUnits="userSpaceOnUse">
+            <path d="M0 6Q5.5 2.5 11 6T22 6" fill="none" stroke="#92c7c8" strokeWidth=".6" opacity=".43" />
+          </pattern>
+          <clipPath id="atlas-shore"><path d={water.lake} /></clipPath>
+        </defs>
+        <rect x={xMin - 20} y="-30" width={span + 40} height="530" fill="#e4e8d9" />
+        <rect x={xMin - 20} y="-30" width={span + 40} height="530" fill="url(#atlas-field)" />
+        <path d={water.lake} fill="#23596a" stroke="#b1cfc8" strokeWidth="2.4" />
+        <g clipPath="url(#atlas-shore)">
+          <rect x={xMin} y="-20" width={span} height="510" fill="url(#atlas-waves)" />
+        </g>
+        <path d={geography.context} className="atlas-context-areas" />
+        {areas.map(name => {
           const count = counts?.[name] ?? 0
           const level = count >= 4 ? 3 : count >= 2 ? 2 : count
-          return <path key={name} d={d} fill={counts ? levels[level].color : '#e6e9df'}
-            className={'impact-area' + (name === selected ? ' is-selected' : '')}
-            onClick={() => choose(name)}>
-            <title>{name}{counts ? ` · ${count} fulfilled` : ''}</title>
-          </path>
+          return <path key={name} d={geography.areas[name].d} fill={counts ? levels[level].color : '#dbe0d5'}
+            className={'atlas-area' + (selected === name ? ' selected' : '')} onClick={() => choose(name)} />
         })}
-        {(Object.keys(labels) as Area[]).map(name => {
-          const area = geography.areas[name]
-          const [x, y] = labels[name]
-          const alignRight = x < area.x
-          return <g key={name} className={'impact-map-label' + (selected === name ? ' is-selected' : '')}
-            onClick={() => choose(name)}>
-            <path d={`M${area.x},${area.y} L${x},${y}`} />
-            <circle cx={area.x} cy={area.y} r={2} />
-            <text x={x + (alignRight ? -3 : 3)} y={y + 3} textAnchor={alignRight ? 'end' : 'start'}>{name}</text>
+        <path d={water.rivers} className="atlas-rivers" />
+        {areas.includes(selected as Area) && <path d={geography.areas[selected as Area].d} className="atlas-area-outline" />}
+        <text x="291" y="100" textAnchor="middle" className="atlas-lake-name" transform="rotate(-9 291 100)">Lake Michigan</text>
+        {areas.map(name => {
+          const {x, y} = geography.areas[name]
+          const [tx, ty, anchor] = labels[name]
+          const left = anchor === 'end'
+          const width = name.length * 7.4 + 14
+          return <g key={name} onClick={() => choose(name)} className={'atlas-map-label' + (selected === name ? ' selected' : '')}>
+            <path d={`M${x},${y}L${tx + (left ? 9 : -9)},${ty}H${tx}`} />
+            <circle cx={x} cy={y} r={selected === name ? 4.3 : 2.6} />
+            <rect className="atlas-label-target" x={left ? tx - width : tx} y={ty - 19} width={width} height="38" rx="3" />
+            <text x={tx + (left ? -4 : 4)} y={ty + 4} textAnchor={anchor}>{name}</text>
           </g>
         })}
+        <g className="atlas-scale" transform={`translate(${xMin + 19} 449)`}>
+          <path d="M0 -3v4h48.1v-4" /><text y="-6">2 mi</text>
+        </g>
       </svg>
-      <span className="impact-north" aria-hidden="true"><i />N</span>
+      <div className="atlas-readout">
+        <span>{periodLabel}</span>
+        <select aria-label="Neighborhood" value={selected} onChange={event => choose(event.target.value)}>
+          <option value="">Citywide</option>{[...areas, 'Unknown'].map(name =>
+            <option key={name} value={name}>{name === 'Unknown' ? 'Unknown neighborhood' : name}</option>)}
+        </select>
+        <span aria-live="polite">{total === null ? 'Awaiting data' : `${number.format(total)} ${total === 1 ? 'need' : 'needs'} fulfilled`}</span>
+      </div>
+      <div className="atlas-north" aria-hidden="true"><span>N</span><i /></div>
     </div>
-    <figcaption className="impact-legend">
+    <figcaption className="atlas-legend">
       <strong>Needs fulfilled</strong>
-      <ul>{levels.map(level => <li key={level.label}><i style={{ background: level.color }} />{level.label}</li>)}
-        <li><i className="context-swatch" />Outside demo</li></ul>
+      <ul>{levels.map(level => <li key={level.label}><i style={{ backgroundColor: level.color }} />{level.label}</li>)}
+        <li><i className="atlas-context-swatch" />Outside demo</li></ul>
     </figcaption>
   </figure>
 }

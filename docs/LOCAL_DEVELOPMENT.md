@@ -1,63 +1,59 @@
 # Run ComForce Connect locally
 
-Use the PowerShell terminal in VS Code. Development checks ran on Windows with Git 2.55.0, Node 22.15.0, npm 10.9.2, Supabase CLI 2.122.1 and Microsoft Edge 157. Start Docker Desktop in Linux-container mode for the CLI stack.
+Use fictional details. The public entry is [Community impact](http://127.0.0.1:5173/), intake is [Request help](http://127.0.0.1:5173/request), and judges open the [Team workspace](http://127.0.0.1:5173/team) directly. Use the same browser and site address between visits to reopen your demo.
 
-The implementation machine lacked Docker. Its two-browser walkthrough ran with standalone PostgreSQL 17.12, PostgREST 13.0.7, Supabase Auth 2.198.0 and Mailpit 1.34.0. A temporary Windows build of Auth used Go’s standard TCP listener. The CLI startup reached the missing-engine check. Container initialization, CLI reset and physical-phone LAN access still need a Docker-equipped laptop.
+## Andrew’s laptop · tested standalone setup
 
-## First run
+The installed launcher starts PostgreSQL 17.12, PostgREST 13.0.7, Supabase Auth 2.198.0, Mailpit 1.34.0, a local API gateway and the Vite frontend. Its data and per-user credentials live under `%LOCALAPPDATA%\ComForceConnect\standalone`. The gateway listens on loopback port 54321. The frontend uses a browser-safe key injected by the launcher.
 
-Install Git, Node 22.15 or later and Docker Desktop, then start Docker Desktop. From your projects folder, clone the repository. If Andrew has already integrated the feature, use the clone as-is. For a shared feature branch awaiting integration, run `git switch --track origin/feature/comforce-mvp` after cloning. In the original local MVP checkout, run `git switch feature/comforce-mvp` directly.
-
-```sh
-git clone --branch integration https://github.com/andrew9990828/comforce-connect.git
-cd comforce-connect
-```
-
-After selecting the branch containing `package.json`, check the Docker server and install from the lockfile.
+**Restart and preserve records.** If [Impact](http://127.0.0.1:5173/) displays the atlas and [Team](http://127.0.0.1:5173/team) loads its queue, reuse them. After a reboot or normal shutdown, run this in PowerShell under Andrew’s Windows account. Keep the terminal open. The launcher reopens the existing database and supplies the public key without editing `.env.local`.
 
 ```powershell
-docker version
+$runtime = Join-Path $env:LOCALAPPDATA 'ComForceConnect\standalone'
+& (Join-Path $runtime 'start.ps1')
+```
+
+**Phone presentation.** Connect the phone and laptop to the same trusted Wi-Fi. From the repo root, the following serves the existing production build on the laptop’s Wi-Fi address. Run it only if that address is not already serving the presentation. Keep this second terminal open.
+
+```powershell
+$runtime = Join-Path $env:LOCALAPPDATA 'ComForceConnect\standalone'
+$wifi = (Get-NetIPConfiguration -InterfaceAlias 'Wi-Fi').IPv4Address.IPAddress
+& (Join-Path $runtime 'bin\node.exe') .\node_modules\vite\bin\vite.js preview --host $wifi --port 5173 --strictPort
+```
+
+To rebuild this standalone presentation after a code change, open the running loopback Impact page with browser developer tools. In **Network**, reload, select the `public_impact` request and copy only the value of its `apikey` request header. In a Node 22.15+ terminal at the repo root, run `$env:VITE_SUPABASE_PUBLISHABLE_KEY = (Get-Clipboard).Trim()`, then `$env:VITE_SUPABASE_URL = '/api'` and `npm run build`. This uses the same public configuration as the running frontend and leaves `.env.local` intact.
+
+1. Open the printed **Network URL** with `/team` on the laptop. Choose **Pair a resident device → Copy resident link**. Share that link privately with the phone. If you opened Team on loopback, enter the full Network URL in **Laptop’s Wi-Fi address** before copying.
+2. Open the link on the phone. This pairs resident intake and Impact to that laptop queue. For the family story, select **Missing person / family support** and **Transportation**. Another judge can open plain `/team` in their own browser to start a separate workspace.
+3. To rehearse on one computer, use a private window for the resident and a normal window for the team. To reuse changes, keep the original browser storage. If a phone cannot reach the Network URL, check private-network firewall access for that frontend and Wi-Fi client isolation.
+
+**Optional verified staff.** Open [Staff sign-in](http://127.0.0.1:5173/team?mode=staff). Enter `von@comforce.example` and choose **Send sign-in code**. In a second tab open [local Mailpit](http://127.0.0.1:54324/), copy the newest six-digit code, return to the staff tab and choose **Open workspace**. This path opens the preserved original cases. The fictional team demo opens immediately.
+
+## Docker and the Supabase CLI · portable setup
+
+Install Node 22.15 or later and start Docker Desktop with Linux containers. From a checkout containing this feature, run the following in PowerShell. Use `npm.cmd` or `npx.cmd` if local script execution is restricted.
+
+```powershell
 npm ci
 npx supabase start
-```
-
-The repo supplies the CLI as a development dependency. The first start downloads containers and initializes the database with the checked-in migrations and fictional seed. Later starts reuse your local data.
-
-Create the environment file once and display only the browser-safe keys.
-
-```powershell
-Copy-Item .env.example .env.local
+if (!(Test-Path .env.local)) { Copy-Item .env.example .env.local }
 npx supabase status -o env | Select-String '^(PUBLISHABLE_KEY|ANON_KEY)='
 ```
 
-In `.env.local`, paste the **publishable** value into `VITE_SUPABASE_PUBLISHABLE_KEY`. The legacy **anon** value also works. Leave `VITE_SUPABASE_URL=/api`. Keep private keys out of browser configuration. If PowerShell blocks `npm.ps1` or `npx.ps1`, use `npm.cmd` and `npx.cmd` for the same commands.
+Set `VITE_SUPABASE_PUBLISHABLE_KEY` to the public key from the filtered output and keep `VITE_SUPABASE_URL=/api` locally. Start `npm run dev`. For a Wi-Fi presentation, build with those values and run `npm run preview -- --host YOUR_WIFI_IP --port 5173 --strictPort` on the Wi-Fi interface. A fresh CLI database uses the migrations and both configured seed files. To apply forward migrations to existing CLI data, run `npx supabase migration up --local`, then load only [demo_seed.sql](../supabase/demo_seed.sql) using the local Studio SQL Editor. For a normal restart, use `npx supabase stop` then `npx supabase start`.
 
-```sh
-npm run dev
-```
+**Destructive local reset (Docker only).** `npx supabase db reset --local` erases the local database and recreates it with both seed files. Use a fresh browser profile afterward. For another judging workspace without erasing data, open `/team` in a separate browser profile. On Andrew’s standalone installation, retain the existing cluster and its credentials during restarts.
 
-Open `http://localhost:5173` for impact and `/request` for intake. To enter `/team`, choose **Send sign-in code**, open Mailpit at `http://127.0.0.1:54324` on the laptop and read the latest six-digit code for `von@comforce.example`. Enter it and choose **Open workspace**. In the workspace choose **New request** to log a call or text. On subsequent days, use `npx supabase start` then `npm run dev`. Restart Vite after environment edits.
-
-## Try the demo on your phone
-
-Connect both devices to trusted Wi-Fi. Stop Vite and run `npm run dev -- --host 0.0.0.0`. Open its Network URL on the phone. A phone interprets `localhost` as itself. The same-origin Vite proxy forwards the app’s REST polling and authentication requests to port 54321 on the laptop. Only Vite needs LAN access. Keep Studio, PostgreSQL and Mailpit on the development computer. If the page will not load, check the laptop’s private-network firewall permission and Wi-Fi client isolation.
-
-Open the queue on the laptop. Submit the fictional groceries-and-ride request from the phone. Fulfill groceries and refer the ride. Check that food impact increases by one, the ride stays open, and refreshing preserves both outcomes. Two browser sessions work for the same test when a physical phone is unavailable.
-
-## Checks and cleanup
+## Checks
 
 ```sh
 npm test
+npm run typecheck
 npm run test:db
-npm run test:live
 npm run build
 npm run preview
 ```
 
-Run the checks from a second terminal with Vite and Supabase running. `npm test` checks intake rules. `test:db` runs the SQL regression suite. `test:live` uses installed Edge or Chrome and two isolated sessions, including mobile emulation. Set `CHROME_PATH` to another Chromium executable if needed. Each run leaves a fictional two-need request in this local database. The production build includes TypeScript checks. Preview serves the compiled frontend with the same local API proxy, usually at `http://localhost:4173`.
+With the local app running, execute `npm run test:live`. For production preview, set `$env:COMFORCE_APP_URL='http://127.0.0.1:4173'` first. The walkthrough runs real fictional transactions in new isolated workspaces. It checks both multi-service stories, retries, independent access, reloads, keyboard use, touch emulation and 390/1440 px layouts. Set `CHROME_PATH` when Edge or Chrome is outside the default paths.
 
-**Destructive local-only reset.** To erase local demo records and staff sessions and restore the seed, run `npx supabase db reset --local`. Sign in again afterward. Stop dev and preview servers with Ctrl+C. Shut down the stack with `npx supabase stop` to keep the local database for next time.
-
-If startup fails, check that `docker version` shows a server, check `node --version` and compare the public key with the filtered status command above. The CLI’s full status output may contain private credentials.
-
-**Hosted later.** A static host would serve `dist/` with navigation fallback to `index.html`. Its build would use the dedicated demo project’s HTTPS URL and publishable key. Isolate each public visitor’s fictional workspace or restrict input to fixed samples before turning on a public staff demo.
+The native Windows stack was tested with a fresh PostgreSQL database, both seed files, the SQL suites and an in-place upgrade of Andrew’s database. Docker was unavailable on this laptop. Physical phone and live hosted checks remain for presentation day. [Supabase and Cloudflare handoff](../README.md#hosting-checklist)

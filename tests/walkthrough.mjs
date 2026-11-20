@@ -1,303 +1,324 @@
-// Two-session local browser walkthrough. Codex (GPT-6) implemented the live UI and endpoint checks.
+// Local presentation walkthrough. OpenAI Codex (GPT-6) built two paired-device stories, isolation checks and responsive inspections.
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { setTimeout as delay } from 'node:timers/promises'
+import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import { chromium } from 'playwright-core'
 
-function localUrl(value, base) {
-  const url = new URL(value, base)
-  assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(url.hostname), 'Use a loopback address for the local walkthrough.')
-  return url.href.replace(/\/$/, '')
-}
-const app = localUrl(process.env.COMFORCE_APP_URL || 'http://127.0.0.1:5173')
-const mailpit = localUrl(process.env.COMFORCE_MAILPIT_URL || 'http://127.0.0.1:54324')
-const api = localUrl(process.env.VITE_SUPABASE_URL || '/api', app)
-const publicKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY
-assert.ok(publicKey, 'Set VITE_SUPABASE_PUBLISHABLE_KEY in .env.local.')
-if (!publicKey.startsWith('sb_publishable_')) {
-  const claims = JSON.parse(Buffer.from(publicKey.split('.')[1], 'base64url').toString())
-  assert.equal(claims.role, 'anon', 'The walkthrough requires a public browser key.')
-}
-const headers = { apikey: publicKey, 'Content-Type': 'application/json' }
-if (!publicKey.startsWith('sb_publishable_')) headers.Authorization = `Bearer ${publicKey}`
-
-async function rpc(name, body = {}, token) {
-  return fetch(`${api}/rest/v1/rpc/${name}`, {
-    method: 'POST', headers: token ? { ...headers, Authorization: `Bearer ${token}` } : headers,
-    body: JSON.stringify(body), redirect: 'error',
-  })
-}
-async function rpcData(name, body = {}, token) {
-  const response = await rpc(name, body, token)
-  assert.ok(response.ok, `${name} returned HTTP ${response.status}.`)
-  return response.status === 204 ? null : response.json()
-}
-async function inbox() {
-  const response = await fetch(mailpit + '/api/v1/messages', { redirect: 'error' })
-  assert.ok(response.ok, 'Open the local Mailpit inbox before running the walkthrough.')
-  return (await response.json()).messages
-}
-async function staffSignIn(page) {
-  const previous = new Set((await inbox()).map(message => message.ID))
-  await page.getByRole('button', { name: 'Send sign-in code' }).click()
-  await page.getByLabel('Six-digit sign-in code').waitFor()
-  for (let i = 0; i < 30; i++) {
-    const message = (await inbox()).find(item => !previous.has(item.ID) && item.To.some(recipient => recipient.Address === 'von@comforce.example'))
-    if (message) {
-      const response = await fetch(`${mailpit}/api/v1/message/${encodeURIComponent(message.ID)}`, { redirect: 'error' })
-      assert.ok(response.ok, 'Could not read the latest local demo email.')
-      const body = await response.json()
-      const code = (body.Text || body.HTML).match(/\b\d{6}\b/)?.[0]
-      assert.ok(code, 'The local sign-in email must include a six-digit code.')
-      await page.getByLabel('Six-digit sign-in code').fill(code)
-      await page.getByRole('button', { name: 'Open workspace' }).click()
-      await page.getByRole('heading', { name: 'Needs queue' }).waitFor()
-      return
-    }
-    await delay(300)
-  }
-  throw new Error('Local staff sign-in email did not arrive.')
-}
-async function noOverflow(page) {
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Horizontal overflow on ${new URL(page.url()).pathname}.`)
-}
-function chicagoMonth(value) {
-  const parts = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: '2-digit', timeZone: 'America/Chicago' }).formatToParts(new Date(value))
-  return parts.find(p => p.type === 'year').value + '-' + parts.find(p => p.type === 'month').value
-}
-function browserPath() {
-  if (process.env.CHROME_PATH) return process.env.CHROME_PATH
-  return [
-    chromium.executablePath(),
-    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-    'C:/Program Files/Google/Chrome/Application/chrome.exe',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser',
-  ].find(existsSync)
-}
-async function changeNeed(dialog, action, fill) {
-  await dialog.getByLabel('Action', { exact: true }).selectOption(action)
-  if (fill) await fill()
-  const committed = dialog.page().waitForResponse(response => response.url().endsWith('/rpc/update_need') && response.request().method() === 'POST')
-  await dialog.getByRole('button', { name: 'Save update' }).click()
-  const response = await committed
-  assert.ok(response.ok(), `Updating a need (${action}) returned HTTP ${response.status()}.`)
-  await dialog.getByRole('status').filter({ hasText: 'updated.' }).waitFor()
-}
-
-// Calculate the expected seed outcome independently from the staff case data.
-function expectedTotals(cases, period, area) {
-  let helped = 0, fulfilled = 0, food = 0, referrals = 0
-  for (const entry of cases.filter(request => request.neighborhood === area)) {
-    const delivered = entry.needs.filter(need => need.fulfilled_at && chicagoMonth(need.fulfilled_at) === period)
-    if (delivered.length) helped++
-    fulfilled += delivered.length
-    food += delivered.filter(need => need.service === 'food').length
-    referrals += entry.needs.flatMap(need => need.referrals).filter(ref => chicagoMonth(ref.sent_at) === period).length
-  }
-  return { helped, fulfilled, food, referrals }
-}
-
-async function impactTotals(month, neighborhood) {
-  const rows = await rpcData('public_impact')
-  const publicFields = ['month', 'neighborhood', 'requests_helped', 'needs_fulfilled', 'referrals_made', 'food_fulfilled'].sort()
-  assert.ok(rows.length, 'Seed some local impact activity first.')
-  for (const row of rows) assert.deepEqual(Object.keys(row).sort(), publicFields, 'Public impact must contain only aggregate fields.')
-  const row = rows.find(item => item.month === month && item.neighborhood === neighborhood)
-  return { helped: row?.requests_helped ?? 0, fulfilled: row?.needs_fulfilled ?? 0,
-    food: row?.food_fulfilled ?? 0, referrals: row?.referrals_made ?? 0 }
-}
-
-async function verifyImpactPage(page, month, area, totals) {
-  await page.getByRole('combobox', { name: 'Reporting month', exact: true }).selectOption(month)
-  await page.getByRole('combobox', { name: 'Neighborhood', exact: true }).selectOption(area)
-  await checkImpactValues(page, totals)
-}
-
-async function checkImpactValues(page, totals) {
-  for (const [id, count] of Object.entries({
-    requests_helped: totals.helped, needs_fulfilled: totals.fulfilled, referrals_made: totals.referrals, food_fulfilled: totals.food,
-  })) {
-    await page.getByTestId(id).filter({ hasText: new RegExp('^\\s*' + count + '\\s*$') }).waitFor()
-  }
-}
-
-async function checkAnonymousBoundary(needId) {
-  const staffRead = await rpc('team_queue')
-  assert.ok([401, 403].includes(staffRead.status), 'Anonymous callers must be denied the staff queue.')
-  const staffWrite = await rpc('update_need', { p_need: needId, p_action: 'assign', p_value: 'Von' })
-  assert.ok([401, 403].includes(staffWrite.status), 'Anonymous callers must be denied staff mutations.')
-  for (const relation of ['requests', 'needs', 'referrals', 'history', 'staff']) {
-    const read = await fetch(`${api}/rest/v1/${relation}?select=*&limit=1`, { headers, redirect: 'error' })
-    if (read.ok) assert.deepEqual(await read.json(), [], 'RLS must hide rows from public callers.')
-    else assert.ok([401, 403, 404].includes(read.status), `Unexpected status reading ${relation}.`)
-  }
-}
-
-const executablePath = browserPath()
-assert.ok(executablePath, 'Install Chrome or Edge, or set CHROME_PATH to a Chromium executable.')
+const app = new URL(process.env.COMFORCE_APP_URL || 'http://127.0.0.1:5173').origin
+const local = url => ['localhost', '127.0.0.1', '[::1]'].includes(new URL(url).hostname)
+assert.ok(local(app), 'Run this test against a loopback app URL.')
+const screenshots = process.env.COMFORCE_QA
+if (screenshots) await mkdir(screenshots, { recursive: true })
+const phone = { width: 390, height: 844 }, laptop = { width: 1440, height: 900 }
+const executablePath = [
+  process.env.CHROME_PATH, chromium.executablePath(),
+  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser',
+].find(path => path && existsSync(path))
+assert.ok(executablePath, 'Install Chrome or Edge, or set CHROME_PATH.')
 const browser = await chromium.launch({ executablePath, headless: true })
-try {
-  const mobile = { width: 390, height: 844 }
-  const laptop = { width: 1366, height: 820 }
-  const resident = await browser.newContext({ viewport: mobile, hasTouch: true, isMobile: true })
-  const staff = await browser.newContext({ viewport: laptop })
-  for (const context of [resident, staff]) {
-    await context.route(/^https?:/, route => {
-      const host = new URL(route.request().url()).hostname
-      return ['localhost', '127.0.0.1', '[::1]'].includes(host) ? route.continue() : route.abort()
-    })
-    context.setDefaultTimeout(12_000)
-  }
-  const form = await resident.newPage()
-  const desk = await staff.newPage()
-  for (const page of [desk, form]) {
-    for (const path of ['/', '/request', '/team']) {
-      await page.goto(app + path)
-      await page.reload()
-      await page.getByRole('heading', { level: 1 }).waitFor()
-      assert.equal(new URL(page.url()).pathname, path)
-      await noOverflow(page)
+let rpcUrl, publicHeaders
+
+async function device(viewport, touch = false) {
+  const context = await browser.newContext({ viewport, hasTouch: touch, reducedMotion: 'reduce', timezoneId: 'America/Chicago' })
+  await context.route(/^https?:/, route => local(route.request().url()) ? route.continue() : route.abort())
+  context.setDefaultTimeout(12_000)
+  return context.newPage()
+}
+const reply = (page, name) => page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/rpc/' + name))
+async function read(response, name) {
+  assert.ok(response.ok(), name + ' failed with status ' + response.status())
+  const text = await response.text()
+  return text ? JSON.parse(text) : null
+}
+async function rpc(name, body) {
+  return fetch(rpcUrl + name, { method: 'POST', redirect: 'error', headers: publicHeaders, body: JSON.stringify(body) })
+}
+async function result(name, body) {
+  const response = await rpc(name, body)
+  assert.ok(response.ok, name + ' failed with status ' + response.status)
+  const text = await response.text()
+  return text ? JSON.parse(text) : null
+}
+async function deny(name, body) {
+  assert.ok([401, 403].includes((await rpc(name, body)).status), name + ' must reject this credential.')
+}
+async function inspect(page, name) {
+  const original = page.viewportSize()
+  for (const size of [phone, laptop]) {
+    await page.setViewportSize(size)
+    await page.evaluate(() => document.fonts.ready)
+    if (name === 'intake') await page.evaluate(() => scrollTo(0, 0))
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + ' overflowed at ' + size.width)
+    const dialog = page.getByRole('dialog')
+    if (await dialog.isVisible()) {
+      assert.ok(await dialog.evaluate(d => d.scrollWidth <= d.clientWidth + 1), 'Case sheet overflowed at ' + size.width)
+    }
+    if (screenshots) {
+      await page.screenshot({ path: join(screenshots, name + '-' + size.width + '.png'), animations: 'disabled' })
     }
   }
-  console.log('Phone emulation and laptop direct navigation/reload passed on all three routes.')
-  const firstQueue = desk.waitForResponse(reply => reply.url().endsWith('/rpc/team_queue') && reply.request().method() === 'POST' && reply.ok())
-  await staffSignIn(desk)
-  const authHeader = await (await firstQueue).request().headerValue('authorization')
-  assert.ok(authHeader?.startsWith('Bearer '), 'Staff queue needs an authenticated session.')
-  const token = authHeader.slice(7)
-  const staffIntake = await staff.newPage()
-  const newRequestPath = await desk.getByRole('link', { name: 'New request', exact: true }).getAttribute('href')
-  await staffIntake.goto(app + newRequestPath)
-  const source = staffIntake.getByLabel('How did the request come in?')
-  assert.equal(await source.inputValue(), 'call')
-  await staffIntake.goto(app + '/request?source=text')
-  assert.equal(await source.inputValue(), 'text')
-  await staffIntake.close()
-
-  const run = randomUUID()
-  const description = 'Fictional groceries and ride ' + run
-  await desk.getByLabel('Search', { exact: true }).fill(description)
+  await page.setViewportSize(original)
+}
+const area = 'Riverwest'
+const familyLabel = 'Missing person / family support'
+const metrics = ['requests_helped', 'needs_fulfilled', 'referrals_made', 'food_fulfilled', 'family_followups']
+const fields = [...metrics, 'month', 'neighborhood'].sort()
+const chicagoMonth = new Intl.DateTimeFormat('en-CA', {
+  year: 'numeric', month: '2-digit', timeZone: 'America/Chicago',
+})
+function period(date) {
+  const parts = chicagoMonth.formatToParts(new Date(date))
+  return parts.find(part => part.type === 'year').value + '-' + parts.find(part => part.type === 'month').value
+}
+const current = period(Date.now())
+async function totals(token, month = current, neighborhood = area) {
+  const rows = await result('public_impact', { p_token: token })
+  assert.ok(rows.length)
+  for (const row of rows) assert.deepEqual(Object.keys(row).sort(), fields)
+  const row = rows.find(r => r.month === month && r.neighborhood === neighborhood)
+  return Object.fromEntries(metrics.map(key => [key, row?.[key] || 0]))
+}
+async function shown(page, numbers) {
+  for (const [key, value] of Object.entries(numbers)) {
+    await page.getByTestId(key).filter({ hasText: new RegExp('^' + value + '$') }).waitFor()
+  }
+}
+async function scope(page, month, neighborhood) {
+  await page.getByRole('combobox', { name: 'Reporting month', exact: true }).selectOption(month)
+  await page.getByRole('combobox', { name: 'Neighborhood', exact: true }).selectOption(neighborhood)
+}
+async function details(page, text, family = false) {
+  await page.getByRole('textbox', { name: family ? 'What support would help your family?' : 'Description', exact: true }).fill(text)
+  if (family) await page.getByLabel('How can staff follow up safely?').fill('Text before calling about this fictional case.')
+  await page.getByLabel('Neighborhood', { exact: true }).selectOption(area)
+  await page.getByLabel('Email', { exact: true }).check()
+  assert.equal(await page.getByLabel('Phone number', { exact: true }).count(), 0)
+  await page.getByLabel('Email address', { exact: true }).fill('demo@example.invalid')
+}
+async function submit(web, desk, description, services) {
+  await desk.getByRole('searchbox', { name: 'Search' }).fill(description)
   await desk.getByRole('heading', { name: 'No matching needs' }).waitFor()
-  await form.goto(app + '/request')
-  await form.getByRole('button', { name: 'Submit request' }).click()
-  await form.getByText('Choose at least one service.', { exact: true }).waitFor()
-  await form.getByRole('checkbox', { name: 'Food', exact: true }).check()
-  await form.getByRole('checkbox', { name: 'Transportation', exact: true }).check()
-  await form.getByLabel('Description', { exact: true }).fill(description)
-  const area = 'Harambee'
-  await form.getByLabel('Neighborhood', { exact: true }).selectOption(area)
-  await form.getByLabel('Email', { exact: true }).check()
-  await form.getByLabel('Email address', { exact: true }).fill('test@example.com')
-  const submit = form.getByRole('button', { name: 'Submit request' })
-  const submitEndpoint = '**/rest/v1/rpc/submit_request'
-
-  // Force a failed delivery of the form before submitting the retained values to Postgres.
-  await form.route(submitEndpoint, route => route.fulfill({
-    status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'Simulated unavailable connection' }),
-  }))
-  await submit.click()
-  await form.getByRole('alert').filter({ hasText: /fail|save|submit|connection|try again|reach/i }).first().waitFor()
-  assert.equal(await form.getByLabel('Description', { exact: true }).inputValue(), description)
-  assert.equal(await form.getByLabel('Email address', { exact: true }).inputValue(), 'test@example.com')
-  assert.ok(await form.getByRole('checkbox', { name: 'Food', exact: true }).isChecked())
-  assert.ok(await form.getByRole('checkbox', { name: 'Transportation', exact: true }).isChecked())
-  await form.unroute(submitEndpoint)
-  const submitReply = form.waitForResponse(reply => reply.url().endsWith('/rpc/submit_request') && reply.ok())
-  await submit.click()
-  const submitted = await submitReply
+  const committed = reply(web, 'submit_request')
+  await web.getByRole('button', { name: 'Submit request' }).click()
+  const saved = await committed
   const start = performance.now()
-  const saved = await submitted.json()
-  const originalInput = submitted.request().postDataJSON()
-  await desk.locator('.team-row').filter({ hasText: 'Transportation' }).waitFor({ timeout: 5000 })
-  const lag = performance.now() - start
-  assert.ok(lag <= 5000, `Queue update took ${Math.round(lag)} ms.`)
-  assert.equal(await desk.locator('.team-row').count(), 2)
-  assert.deepEqual(await rpcData('submit_request', originalInput), saved)
-  const spoofedSource = await rpc('submit_request', { ...originalInput, p_source: 'call' })
-  assert.ok([401, 403].includes(spoofedSource.status), 'Public intake must not log staff calls.')
-  const cases = await rpcData('team_queue', {}, token)
-  const matching = cases.filter(request => request.description === description)
-  assert.equal(matching.length, 1)
-  const request = matching[0]
-  assert.equal(request.needs.length, 2)
-  await form.getByText(request.reference, { exact: true }).waitFor()
-  console.log(`Failed submission retained values; idempotent retry and live staff arrival passed (${Math.round(lag)} ms).`)
-
-  const food = request.needs.find(need => need.service === 'food')
-  const ride = request.needs.find(need => need.service === 'transportation')
-  const month = chicagoMonth(Date.now())
-  const baseline = await impactTotals(month, area)
-  await form.goto(app + '/')
-  await verifyImpactPage(form, month, area, baseline)
-  await desk.locator('.team-row').filter({ hasText: 'Food' }).click()
+  const reference = await read(saved, 'Submit')
+  await desk.locator('.team-row').filter({ hasText: reference }).first().waitFor({ timeout: 5000 })
+  const lag = Math.round(performance.now() - start)
+  assert.ok(lag <= 5000, 'Queue took ' + lag + ' ms to receive intake.')
+  assert.equal(await desk.locator('.team-row').count(), services.length)
+  await web.getByRole('heading', { name: 'Request received' }).waitFor()
+  await web.getByText(reference, { exact: true }).waitFor()
+  for (const service of services) await web.locator('.receipt-needs').getByText(service, { exact: true }).waitFor()
+  assert.equal(await web.getByRole('navigation', { name: 'Team navigation' }).count(), 0)
+  assert.equal(await result('submit_request', saved.request().postDataJSON()), reference)
+  console.log('Committed multi-need intake and retry; queue arrival ' + lag + ' ms.')
+  return reference
+}
+async function action(desk, label, fill, alreadyOpen = false) {
   const dialog = desk.getByRole('dialog')
-  await changeNeed(dialog, 'direct')
-  const confirmed = { p_need: food.id, p_action: 'fulfill' }
-  let competingStatus
-  await desk.route('**/rest/v1/rpc/update_need', async route => {
-    const [original, concurrent] = await Promise.all([route.fetch({ maxRedirects: 0 }), rpc('update_need', confirmed, token)])
-    competingStatus = concurrent.status
+  if (!alreadyOpen) {
+    const option = dialog.getByRole('button', { name: label, exact: true })
+    if (!(await option.isVisible())) await dialog.getByRole('button', { name: 'More actions', exact: true }).click()
+    await option.click()
+  }
+  if (fill) await fill(dialog)
+  const committed = reply(desk, 'update_need')
+  await dialog.getByRole('button', { name: 'Save update', exact: true }).click()
+  const response = await committed
+  await read(response, label)
+  await dialog.getByRole('status').filter({ hasText: /Update saved|Follow-up recorded/ }).waitFor()
+  return response.request().postDataJSON()
+}
+function racingUpdate(page) {
+  // Both requests use the same payload and the database serializes them on the need row.
+  return page.route('**/rest/v1/rpc/update_need', async route => {
+    const [original, copy] = await Promise.all([route.fetch(), rpc('update_need', route.request().postDataJSON())])
+    assert.ok(copy.ok, 'Concurrent update failed with status ' + copy.status)
     await route.fulfill({ response: original })
   }, { times: 1 })
-  await changeNeed(dialog, 'fulfill')
-  assert.ok(competingStatus >= 200 && competingStatus < 300, 'The competing fulfillment should return the existing result.')
-  assert.ok((await rpc('update_need', confirmed, token)).ok, 'Retrying fulfillment after commit should succeed.')
-  await dialog.getByRole('button', { name: /Transportation/ }).click()
-  await changeNeed(dialog, 'refer', () => dialog.getByLabel('Partner name', { exact: true }).fill('Demo ride partner'))
-  await changeNeed(dialog, 'assign', () => dialog.getByLabel('Worker name', { exact: false }).fill('Von'))
-  const followUpDay = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10)
-  await changeNeed(dialog, 'follow_up', () => dialog.getByLabel(/Follow-up date and time/).fill(followUpDay + 'T11:00'))
-  await dialog.getByRole('button', { name: /Food Fulfilled/ }).waitFor()
-  await dialog.getByRole('button', { name: 'Close', exact: true }).click()
-
-  const updated = (await rpcData('team_queue', {}, token)).find(item => item.id === request.id)
-  const delivered = updated.needs.find(need => need.id === food.id)
-  const pending = updated.needs.find(need => need.id === ride.id)
-  assert.equal(delivered.status, 'fulfilled')
-  assert.ok(delivered.provider && delivered.fulfilled_at)
-  assert.equal(delivered.history.filter(event => event.action === 'fulfill').length, 1)
-  assert.equal(pending.status, 'open')
-  assert.equal(pending.owner, 'Von')
-  assert.ok(pending.follow_up)
-  assert.deepEqual(pending.referrals.map(ref => ref.partner), ['Demo ride partner'])
-  const totals = await impactTotals(month, area)
-  assert.deepEqual(totals, {
-    helped: baseline.helped + 1, fulfilled: baseline.fulfilled + 1,
-    food: baseline.food + 1, referrals: baseline.referrals + 1,
-  })
-  await checkImpactValues(form, totals)
-  assert.equal(await form.getByRole('combobox', { name: 'Reporting month', exact: true }).inputValue(), month)
-  assert.equal(await form.getByRole('combobox', { name: 'Neighborhood', exact: true }).inputValue(), area)
-  const allCases = await rpcData('team_queue', {}, token)
-  const crossMonth = allCases.find(entry => entry.needs.some(need => need.fulfilled_at && chicagoMonth(need.fulfilled_at) !== chicagoMonth(entry.created_at)))
-  assert.ok(crossMonth, 'Seed at least one cross-month fulfillment.')
-  const outcome = crossMonth.needs.find(need => need.fulfilled_at && chicagoMonth(need.fulfilled_at) !== chicagoMonth(crossMonth.created_at))
-  for (const period of [chicagoMonth(crossMonth.created_at), chicagoMonth(outcome.fulfilled_at)]) {
-    assert.deepEqual(await impactTotals(period, crossMonth.neighborhood), expectedTotals(allCases, period, crossMonth.neighborhood))
-  }
-  const midnight = allCases.flatMap(entry => entry.needs.map(need => ({ area: entry.neighborhood, at: need.fulfilled_at })))
-    .find(event => event.at && new Date(event.at).toISOString().slice(0, 7) !== chicagoMonth(event.at))
-  assert.ok(midnight, 'Seed a fulfillment across the UTC / Chicago month boundary.')
-  for (const period of [chicagoMonth(midnight.at), new Date(midnight.at).toISOString().slice(0, 7)]) {
-    assert.deepEqual(await impactTotals(period, midnight.area), expectedTotals(allCases, period, midnight.area))
-  }
-  await checkAnonymousBoundary(food.id)
-  await Promise.all([form.goto(app + '/'), desk.reload()])
-  await Promise.all([form.reload(), desk.getByRole('heading', { name: 'Needs queue' }).waitFor()])
-  await desk.getByLabel('Search', { exact: true }).fill(description)
-  await desk.locator('.team-row').filter({ hasText: 'Transportation' }).waitFor()
-  assert.equal(await desk.locator('.team-row').count(), 1)
-  await desk.setViewportSize(mobile)
-  await noOverflow(desk)
-  await desk.locator('.team-row').click()
-  await dialog.getByRole('button', { name: /Food Fulfilled/ }).waitFor()
-  await dialog.getByText('Von', { exact: true }).waitFor()
-  await dialog.getByText(/Check with Demo ride partner/).waitFor()
-  await noOverflow(desk)
-  await verifyImpactPage(form, month, area, totals)
-  console.log('Direct delivery, partner referral, assignment, follow-up, duplicate confirmation, cross-month attribution, public privacy, and reload persistence passed.')
-} finally {
-  await browser.close()
 }
+async function pairedDemo() {
+  const desk = await device(laptop), web = await device(phone, true), stranger = await device(laptop)
+  const firstQueue = reply(desk, 'team_queue')
+  await desk.goto(app + '/team')
+  const ready = await firstQueue
+  await read(ready, 'Open team demo')
+  rpcUrl = ready.url().slice(0, -'team_queue'.length)
+  assert.ok(local(rpcUrl))
+  const auth = await ready.request().allHeaders()
+  publicHeaders = { apikey: auth.apikey, 'Content-Type': 'application/json' }
+  if (auth.authorization) publicHeaders.Authorization = auth.authorization
+  const staff = ready.request().postDataJSON().p_token
+  assert.ok(staff, 'Team must open a scoped demo without email.')
+  await desk.getByRole('button', { name: 'Pair a resident device' }).click()
+  const link = await desk.getByLabel('Resident-only link').inputValue()
+  assert.ok(local(link) && new URL(link).pathname === '/request')
+  await web.goto(link)
+  assert.ok(!web.url().includes('#'), 'Resident capability should be removed from the visible URL.')
+  await desk.getByRole('button', { name: 'Pair a resident device' }).click()
+  await inspect(desk, 'queue')
+  await web.goto(app + '/')
+  const aggregate = reply(web, 'public_impact')
+  await web.reload()
+  const data = await aggregate
+  await read(data, 'Open paired atlas')
+  const resident = data.request().postDataJSON().p_token
+  assert.ok(resident && resident !== staff)
+  const otherQueue = reply(stranger, 'team_queue')
+  await stranger.goto(app + '/team')
+  const otherResult = await otherQueue
+  await read(otherResult, 'Open independent team')
+  const other = otherResult.request().postDataJSON().p_token
+  assert.ok(other && other !== staff)
+  const baseline = await totals(resident)
+  const otherBaseline = await totals(other)
+  await scope(web, current, area)
+  await shown(web, baseline)
+  const published = () => Promise.all([web.locator('.impact-reach').innerText(), web.locator('.impact-history').innerText()])
+  const evidence = await published()
+  await web.getByRole('combobox', { name: 'Reporting month', exact: true }).selectOption('2026-10')
+  await web.locator('.atlas-map-label text').filter({ hasText: /^Lincoln Park$/ }).tap()
+  assert.equal(await web.getByRole('combobox', { name: 'Neighborhood', exact: true }).inputValue(), 'Lincoln Park')
+  await shown(web, await totals(resident, '2026-10', 'Lincoln Park'))
+  assert.deepEqual(await published(), evidence)
+  await web.locator('body').press('Control+Home')
+  await inspect(web, 'impact')
+  assert.ok(await web.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches))
+  await web.goto(app + '/request')
+  await web.reload()
+  await web.keyboard.press('Tab')
+  assert.equal(await web.evaluate(() => document.activeElement?.textContent), 'Skip to content')
+  await web.keyboard.press('Enter')
+  await web.getByRole('button', { name: 'Submit request' }).click()
+  await web.getByText('Choose at least one service.', { exact: true }).waitFor()
+  await web.getByText('Food', { exact: true }).first().tap()
+  await web.getByRole('checkbox', { name: 'Transportation', exact: true }).check()
+  const stamp = randomUUID().slice(0, 8)
+  const groceries = 'Fictional groceries and ride ' + stamp
+  await details(web, groceries)
+  await web.route('**/rest/v1/rpc/submit_request', r => r.fulfill({ status: 503, contentType: 'application/json', body: '{"message":"Offline fixture"}' }), { times: 1 })
+  await web.getByRole('button', { name: 'Submit request' }).click()
+  await web.getByRole('alert').waitFor()
+  assert.equal(await web.getByLabel('Description', { exact: true }).inputValue(), groceries)
+  assert.ok(await web.getByRole('checkbox', { name: 'Food', exact: true }).isChecked())
+  const groceriesRef = await submit(web, desk, groceries, ['Food', 'Transportation'])
+  await web.getByRole('link', { name: 'View community impact' }).click()
+  await scope(web, current, area)
+  await desk.locator('[data-service="food"] .team-need-link').click()
+  const dialog = desk.getByRole('dialog')
+  await action(desk, 'Arrange direct help')
+  await racingUpdate(desk)
+  const confirm = await action(desk, 'Confirm delivery')
+  await result('update_need', confirm)
+  await dialog.getByRole('group', { name: 'Select a need' }).getByRole('button', { name: /Transportation/ }).click()
+  await action(desk, 'Assign a worker', d => d.getByLabel('Worker name').fill('Von'))
+  await action(desk, 'Send referral', d => d.getByLabel('Partner name').fill('Fictional Ride Partner'))
+  const due = '2026-12-05T14:30'
+  await action(desk, 'Schedule follow-up', d => d.getByLabel(/Follow-up due/).fill(due))
+  await dialog.getByRole('button', { name: /Food.*Fulfilled/i }).waitFor()
+  await desk.goBack()
+  await dialog.waitFor({ state: 'hidden' })
+  assert.equal(await desk.getByRole('searchbox', { name: 'Search' }).inputValue(), groceries)
+  const foodTotals = {
+...baseline, needs_fulfilled: baseline.needs_fulfilled + 1, food_fulfilled: baseline.food_fulfilled + 1,
+    requests_helped: baseline.requests_helped + 1, referrals_made: baseline.referrals_made + 1,
+}
+  assert.deepEqual(await totals(resident), foodTotals)
+  await shown(web, foodTotals)
+  console.log('Groceries delivered once, ride referred, public filter retained and live totals updated.')
+  await web.getByRole('link', { name: 'Request family support', exact: true }).tap()
+  assert.ok(await web.getByRole('checkbox', { name: familyLabel, exact: true }).isChecked())
+  await web.getByRole('checkbox', { name: 'Transportation', exact: true }).check()
+  const familyNote = 'Fictional family callback and ride ' + stamp
+  await details(web, familyNote, true)
+  await inspect(web, 'intake')
+  const familyRef = await submit(web, desk, familyNote, [familyLabel, 'Transportation'])
+  await inspect(web, 'confirmation')
+  await web.getByRole('link', { name: 'View community impact' }).click()
+  await scope(web, current, area)
+  const familyRow = desk.locator('[data-service="family_support"]')
+  await familyRow.getByRole('button', { name: 'Assign a worker', exact: true }).click()
+  await action(desk, 'Assign a worker', d => d.getByLabel('Worker name').fill('Von'), true)
+  await action(desk, 'Record partner contact', d => d.getByLabel('Partner name').fill('Fictional Family Liaison'))
+  await action(desk, 'Schedule family check-in', d => d.getByLabel(/Follow-up due/).fill(due))
+  await racingUpdate(desk)
+  const checked = await action(desk, 'Record follow-up', async d => {
+    await d.getByLabel('Follow-up outcome').fill('Family received the requested support contacts.')
+    await d.getByLabel('Verified by').fill('Family member by phone')
+  })
+  await result('update_need', checked)
+  await dialog.getByText('Family received the requested support contacts.', { exact: true }).first().waitFor()
+  await inspect(desk, 'case')
+  const familyTotals = { ...foodTotals, family_followups: foodTotals.family_followups + 1 }
+  await shown(web, familyTotals)
+  assert.deepEqual(await totals(resident), familyTotals)
+  assert.deepEqual(await totals(other), otherBaseline)
+  assert.deepEqual(await published(), evidence)
+  await web.reload()
+  await scope(web, current, area)
+  await shown(web, familyTotals)
+  await desk.reload()
+  await dialog.getByRole('button', { name: /Transportation.*Open/i }).waitFor()
+  await dialog.press('Escape')
+  await dialog.waitFor({ state: 'hidden' })
+  const cases = await result('team_queue', { p_token: staff })
+  const familyCase = cases.find(c => c.reference === familyRef), foodCase = cases.find(c => c.reference === groceriesRef)
+  const support = familyCase.needs.find(n => n.service === 'family_support')
+  assert.equal(familyCase.family_support.safe_contact, 'Text before calling about this fictional case.')
+  assert.equal(support.owner, 'Von')
+  assert.equal(support.status, 'open')
+  assert.equal(support.follow_up, null)
+  assert.equal(support.partner_contact, 'Fictional Family Liaison')
+  assert.equal(support.history.filter(e => e.action === 'check_in').length, 1)
+  const outcome = support.history.find(e => e.action === 'check_in')
+  assert.equal(outcome.source, 'Family member by phone')
+  assert.equal(new Date(outcome.at).getTime(), new Date(checked.p_when).getTime())
+  assert.equal(familyCase.needs.find(n => n.service === 'transportation').status, 'open')
+  const transport = foodCase.needs.find(n => n.service === 'transportation')
+  assert.ok(transport.status === 'open' && transport.owner === 'Von' && transport.follow_up)
+  assert.equal(transport.referrals.length, 1)
+  assert.equal(foodCase.needs.find(n => n.service === 'food').history.filter(e => e.action === 'fulfill').length, 1)
+  await deny('team_queue', { p_token: resident })
+  await deny('team_queue', { p_token: null })
+  await deny('update_need', { p_token: resident, p_need: support.id, p_action: 'assign', p_value: 'Wrong worker' })
+  await deny('update_need', { p_token: other, p_need: support.id, p_action: 'assign', p_value: 'Wrong worker' })
+  assert.ok(!(await result('team_queue', { p_token: other })).some(c => c.reference === familyRef || c.reference === groceriesRef))
+  for (const name of ['requests', 'needs', 'referrals', 'history', 'workspaces']) {
+    const url = new URL('../' + name + '?select=*&limit=1', rpcUrl)
+    const response = await fetch(url, { headers: publicHeaders, redirect: 'error' })
+    assert.ok([401, 403, 404].includes(response.status) || response.ok && (await response.json()).length === 0)
+  }
+  // Independent accounting catches attribution by intake date or UTC instead of Chicago outcome date.
+  const boundary = cases.find(c => c.needs.some(n => n.fulfilled_at && period(c.created_at) !== period(n.fulfilled_at)
+    && period(n.fulfilled_at) !== new Date(n.fulfilled_at).toISOString().slice(0, 7)))
+  assert.ok(boundary, 'Missing the cross-month, Chicago-boundary demo fixture.')
+  for (const month of ['2026-08', '2026-09', '2026-10']) {
+    const delivered = cases.filter(c => c.neighborhood === boundary.neighborhood).flatMap(c => c.needs)
+      .filter(n => n.fulfilled_at && period(n.fulfilled_at) === month)
+    assert.equal((await totals(resident, month, boundary.neighborhood)).needs_fulfilled, delivered.length)
+  }
+  console.log('Family callback counted once with source/time, paired access and independent workspace isolation passed.')
+  await desk.getByRole('link', { name: 'Log a request', exact: true }).click()
+  assert.equal(await desk.getByLabel('How did the request come in?').inputValue(), 'call')
+  await desk.getByLabel('How did the request come in?').selectOption('text')
+  await desk.getByRole('checkbox', { name: 'Food', exact: true }).check()
+  await details(desk, 'Fictional staff text ' + stamp)
+  await desk.getByRole('button', { name: 'Save and open case' }).click()
+  await dialog.getByText(/Text intake/).waitFor()
+  assert.ok(new URL(desk.url()).searchParams.has('case'))
+  await stranger.goto(app + '/team?case=' + encodeURIComponent(familyRef))
+  await stranger.getByText(/This case is unavailable/).waitFor()
+  assert.equal(await stranger.getByRole('dialog').count(), 0)
+  console.log('Staff intake source/return, private deep links, reloads, keyboard, touch, reduced motion and 390/1440 layouts passed.')
+}
+
+try { await pairedDemo() }
+catch (error) {
+  // Playwright navigation errors can include the URL fragment. Keep every capability out of logs.
+  console.error(String(error?.message || error).replace(/[a-f\d]{64}/gi, '[workspace credential]').replace(/eyJ[\w.-]+/g, '[token]'))
+  process.exitCode = 1
+} finally { await browser.close() }

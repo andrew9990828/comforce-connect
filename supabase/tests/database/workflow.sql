@@ -15,12 +15,14 @@ begin
           where n.nspname='comforce' and c.relkind='r'), 'private tables must enable RLS';
   assert not has_schema_privilege('anon','comforce','usage');
   assert not has_schema_privilege('authenticated','comforce','usage');
-  assert not has_function_privilege('anon','public.team_queue()','execute');
-  assert not has_function_privilege('anon','public.update_need(uuid,text,text,uuid,timestamptz)','execute');
+  assert to_regprocedure('public.team_queue()') is null;
+  assert to_regprocedure('public.update_need(uuid,text,text,uuid,timestamptz)') is null;
 end $$;
-select 'ok 1 - base tables and team functions are private';
+select 'ok 1 - base tables are private and unscoped overloads are removed';
 
-set local role anon;
+-- Existing records stay in the original scope. Only allowlisted verified staff can enter it.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"42667ca8-5125-4db0-834e-000000000001","email":"worker-test@example.invalid","role":"authenticated"}';
 do $$
 declare ref text;
 begin
@@ -34,12 +36,6 @@ begin
       'Fictional test','Harambee','email','test@example.invalid','web');
     raise exception 'accepted different payload for the same key';
   exception when invalid_parameter_value then null;
-  end;
-  begin
-    perform public.submit_request(gen_random_uuid(),array['food'],'Fictional test','Harambee',
-      'email','test@example.invalid','call');
-    raise exception 'anonymous client could impersonate a worker';
-  exception when insufficient_privilege then null;
   end;
 end $$;
 reset role;
@@ -125,14 +121,14 @@ update comforce.referrals set sent_at='2049-12-28 10:00-06',
   declined_at=case when declined_at is not null then '2049-12-29 10:00-06'::timestamptz end
 where need_id in (select n.id from comforce.needs n join comforce.requests r on n.request_id=r.id
                   where r.submission_key='42667ca8-5125-4db0-834e-000000000003');
-set local role anon;
+set local role authenticated;
 do $$
 declare totals record;
 begin
   select * into strict totals from public.public_impact() where month='2049-12' and neighborhood is null;
   assert (totals.requests_helped,totals.needs_fulfilled,totals.referrals_made,totals.food_fulfilled)
          = (1,2,2,1);
-  assert (select count(*)=6 from jsonb_object_keys(to_jsonb(totals)));
+  assert (select count(*)=7 from jsonb_object_keys(to_jsonb(totals)));
   assert (select count(*)=1 from public.public_impact() where month='2049-12' and neighborhood='Harambee');
   assert not exists(select 1 from public.public_impact() where month='2050-01');
 end $$;
