@@ -19,14 +19,18 @@ For hand-authored code, keep a short purpose, contributor, and AI-assistance hea
 
 ## Open the PR
 
-Run the relevant checks in the local guide. Stage the files you intended to change, then:
+Run the relevant checks in the local guide. For an intake change, review the working tree, then stage the intended files by name.
 
 ```sh
+git status --short
+git diff
+git add -- src/intake/Intake.tsx src/intake/form.ts tests/intake.test.mjs
 git diff --cached
 git commit -m "Add multi-need request intake"
 git push -u origin HEAD
+gh pr create --base integration --head feature/request-intake --title "Add multi-need request intake" --body "Adds multi-service requests. Tested with npm test and npm run build."
 ```
 
-In GitHub choose **base: integration** and **compare: your feature branch**. Say what changed and how you tested it. For a UI change, attach a screenshot when it helps review. For a database change, describe the migration. Check the base again before submitting.
+Replace the example paths, branch, change description and checks with your own. In the GitHub web interface, choose **base** `integration` and **compare** `feature/request-intake`. Say what changed and how you tested it.
 
 If your branch falls behind, commit or otherwise preserve local edits, then run `git fetch origin` and `git merge origin/integration` on your feature branch. Resolve conflicts, repeat the affected checks, and push. Andrew opens and merges the release PR from `integration` to `main` after the demo passes.

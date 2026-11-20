@@ -1,0 +1,36 @@
+/* Intake layout, field validation and receipt. Codex (GPT-6) styled mobile and desktop forms. */
+.intake-page { max-width: 1160px; margin: 0 auto; padding: clamp(2rem, 5vw, 4rem) clamp(1rem, 4vw, 3rem); }
+.intake-page h1 { max-width: 22ch; text-wrap: balance; margin-bottom: .8rem; font-size: clamp(2.2rem, 5vw, 3.8rem); color: var(--lake); line-height: 1.03; letter-spacing: -.055em; }
+.intake-intro p, .intake-hint { color: var(--muted); }
+.intake-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .44fr); gap: clamp(1rem, 3vw, 2rem); align-items: start; margin-top: 1.7rem; }
+.intake-form, .intake-receipt { padding: clamp(1.1rem, 3vw, 2.25rem); background: #fffefa; border: 1px solid var(--line); border-radius: 12px; }
+.intake-aside { background: #e4eee7; padding: 1.65rem; border-top: 3px solid var(--teal); border-radius: 0 0 10px 10px; }
+.intake-aside h2 { color: var(--lake); font-size: 1.35rem; letter-spacing: -.035em; margin-bottom: .8rem; }
+.intake-aside p:last-child { margin-bottom: 0; }
+.intake-page fieldset { margin: 0; min-width: 0; padding: 0; border: 0; }
+.intake-fields > .intake-block { margin-bottom: 1.45rem; }
+.intake-block > label, .intake-block legend { display: block; padding: 0; font-weight: 700; margin-bottom: .45rem; }
+.intake-hint { font-size: .92rem; margin: -.3rem 0 .7rem; }
+.service-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+.service-option, .contact-options label { display: flex; align-items: center; min-height: 46px; gap: .55rem; cursor: pointer; }
+.service-option { padding: .6rem .8rem; border-radius: 6px; border: 1px solid #b9c8c1; }
+.service-option:has(:checked) { background: #e6f2ec; border-color: var(--teal); }
+.intake-form input:is([type=checkbox], [type=radio]) { width: 18px; height: 18px; margin: 0; accent-color: var(--teal); }
+.contact-options { display: flex; flex-wrap: wrap; gap: 1.5rem; }
+.intake-block > :is(input, textarea, select) { display: block; width: 100%; min-height: 46px; padding: .65rem .8rem; background: #fff; border: 1px solid #9fafa9; color: var(--ink); border-radius: 5px; }
+.intake-block textarea { resize: vertical; }
+.intake-block [aria-invalid=true] { border-color: #a83d30; }
+.intake-error { color: #922e23; margin: .4rem 0 0; }
+.submit-error { background: #fff1ec; padding: .8rem; margin-bottom: .8rem; }
+.intake-submit { padding: .85rem 1.35rem; font-weight: 700; color: white; background: var(--teal); border: 0; border-radius: 6px; min-height: 48px; }
+.intake-submit:hover { background: #005449; }
+.intake-receipt { max-width: 38rem; margin: 0 auto; }
+.receipt-check { display: inline-grid; place-items: center; width: 3rem; height: 3rem; border-radius: 50%; margin-bottom: 1.3rem; color: var(--teal); background: #daeee4; font-size: 1.7rem; }
+.receipt-ref { display: grid; gap: .35rem; border-block: 1px solid var(--line); margin: 1rem 0; padding: 1rem 0; }
+.receipt-ref strong { font-size: 1.6rem; color: var(--lake); }
+.intake-receipt a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; }
+@media (max-width: 720px) {
+  .intake-layout { grid-template-columns: minmax(0, 1fr); }
+  .intake-submit { width: 100%; }
+}
+@media (max-width: 370px) { .service-options { grid-template-columns: minmax(0, 1fr); } }

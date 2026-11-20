@@ -1,0 +1,59 @@
+/* Shared typography, navigation and focus styles. Codex (GPT-6) implemented the responsive shell. */
+:root {
+  font-family: 'DM Sans Variable', 'Segoe UI', sans-serif;
+  font-size: 100%;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--ivory);
+  --lake: #133f53;
+  --teal: #08695e;
+  --ivory: #faf8f2;
+  --ink: #162f35;
+  --muted: #50636a;
+  --line: #d2dbd6;
+  --amber: #81520a;
+  font-synthesis: none;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 280px; }
+button, input, select, textarea { font: inherit; }
+button, select { cursor: pointer; }
+button { color: inherit; }
+button:disabled { cursor: wait; }
+a { color: var(--teal); }
+h1, h2, h3, p { margin-top: 0; }
+:focus-visible { outline: 3px solid #007caa; outline-offset: 3px; }
+.site-header { background: #fffefa; border-bottom: 1px solid var(--line); }
+.site-bar { max-width: 1280px; padding: 0 clamp(1rem, 4vw, 3.5rem); margin: auto; display: flex; align-items: center; gap: clamp(1rem, 4vw, 3.8rem); min-height: 76px; }
+.brand { display: inline-flex; align-items: center; gap: .72rem; color: var(--lake); font-size: 1.42rem; line-height: 1; font-weight: 820; letter-spacing: -.065em; text-decoration: none; white-space: nowrap; }
+.brand b { font-weight: 470; }
+.brand-mark { display: flex; align-items: center; justify-content: center; gap: 2px; width: 35px; height: 35px; border-radius: 9px 2px 9px 2px; background: var(--lake); }
+.brand-mark i { display: block; width: 5px; transform: skewY(-24deg); height: 13px; background: #fff9ed; }
+.brand-mark i:nth-child(2) { height: 21px; background: #7dd7c4; }
+.brand-mark i:last-child { height: 17px; }
+.site-nav { display: flex; gap: clamp(.8rem, 2.5vw, 2.1rem); align-self: stretch; margin-left: auto; }
+.site-nav a { display: flex; align-items: center; min-height: 44px; font-size: .9rem; font-weight: 620; text-decoration: none; color: var(--muted); padding-top: 3px; border-bottom: 3px solid transparent; }
+.site-nav a[aria-current] { border-color: var(--teal); color: var(--lake); }
+.site-nav a:hover { color: var(--teal); }
+.nav-short { display: none; }
+.demo-label { display: inline-flex; align-items: center; gap: .4rem; color: var(--teal); white-space: nowrap; font-size: .8rem; font-weight: 700; }
+.demo-label span { font-size: 1.15rem; }
+.site-footer { border-top: 1px solid var(--line); color: var(--muted); padding: 1.25rem max(4vw, calc((100% - 1152px) / 2)); display: flex; justify-content: space-between; gap: 1rem; font-size: .83rem; }
+.skip-link { position: absolute; left: 1rem; top: -8rem; background: white; padding: .8rem; z-index: 30; }
+.skip-link:focus { top: 1rem; }
+.setup-notice { padding: .65rem 4vw; background: #fff1d4; color: #664311; font-size: .92rem; }
+.missing-page { max-width: 70rem; margin: 4rem auto; padding: 0 1rem; }
+@media (max-width: 760px) {
+  .site-bar { flex-wrap: wrap; gap: 0; padding-top: .85rem; }
+  .brand { font-size: 1.25rem; }
+  .demo-label { margin-left: auto; }
+  .site-nav { flex-basis: 100%; order: 3; gap: 1.4rem; margin-top: .4rem; }
+  .site-nav a { font-size: .85rem; }
+  .nav-full { display: none; }
+  .nav-short { display: inline; }
+}
+@media (max-width: 375px) {
+  .site-nav { justify-content: space-between; gap: .35rem; }
+  .brand { gap: .4rem; font-size: 1.05rem; }
+  .site-footer { flex-direction: column; }
+}
