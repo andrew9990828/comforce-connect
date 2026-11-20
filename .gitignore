@@ -1,0 +1,8 @@
+# Local dependencies, state and the supplied private working brief. Codex (GPT-6) authored these exclusions.
+/node_modules/
+/dist/
+/.env*
+!/.env.example
+/supabase/.temp/
+/supabase/.branches/
+/CODEX_MVP_PROMPT.md
