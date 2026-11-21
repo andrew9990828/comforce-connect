@@ -1,3 +1,4 @@
+import { t } from '../languages/language'
 // Phone pairing panel. Codex (GPT-6) implemented resident-only links and local-network address selection.
 import { useRef, useState } from 'react'
 import { residentLink } from '../workspace'
@@ -37,19 +38,19 @@ export default function ResidentPairing({ token }: { token: string }) {
   }
   return <div className="team-pair">
     <button className="team-secondary" aria-controls="resident-pairing" aria-expanded={open} onClick={() => setOpen(!open)}>
-      <span aria-hidden="true" className="pair-device"/>Pair a resident device
+      <span aria-hidden="true" className="pair-device"/>{t("Pair a resident device")}
     </button>
-    {open && <section id="resident-pairing" aria-label="Pair a resident device">
-      <h2>Resident link</h2>
-      <p>Open this link on the resident’s device. Their fictional requests will arrive in this queue. The link grants intake and aggregate access only.</p>
-      {loopback && <label>Laptop’s Wi-Fi address
+    {open && <section id="resident-pairing" aria-label={t("Pair a resident device")}>
+      <h2>{t("Resident link")}</h2>
+      <p>{t("Open this link on the resident’s device. Their fictional requests will arrive in this queue. The link grants intake and aggregate access only.")}</p>
+      {loopback && <label>{t("Laptop’s Wi-Fi address")}
         <input type="url" autoComplete="off" placeholder="http://192.168.1.20:5173" value={address} onChange={e => { setAddress(e.target.value); setMessage('') }}/>
-        <span className="case-hint">For a phone, use the laptop’s LAN URL on the same trusted Wi-Fi. Leave blank for a second browser on this laptop.</span>
+        <span className="case-hint">{t("For a phone, use the laptop’s LAN URL on the same trusted Wi-Fi. Leave blank for a second browser on this laptop.")}</span>
       </label>}
-      {link ? <><label>Resident-only link<input ref={output} readOnly value={link} onFocus={e => e.target.select()}/></label>
-        <button className="team-primary" onClick={copy}>Copy resident link</button></>
-        : <p className="team-error">Enter a local Wi-Fi URL with its port.</p>}
-      <p role="status" className="team-notice">{message}</p>
+      {link ? <><label>{t("Resident-only link")}<input ref={output} readOnly value={link} onFocus={e => e.target.select()}/></label>
+        <button className="team-primary" onClick={copy}>{t("Copy resident link")}</button></>
+        : <p className="team-error">{t("Enter a local Wi-Fi URL with its port.")}</p>}
+      <p role="status" className="team-notice">{t(message)}</p>
     </section>}
   </div>
 }
