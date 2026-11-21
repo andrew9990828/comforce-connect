@@ -1,5 +1,6 @@
 // Staff case sheet. Codex (GPT-6) organized related needs, safe contact, verified updates and direct case actions.
 import { useEffect, useRef } from 'react'
+import type { StaffMember } from '../workspace'
 import { actionLabel, dated, historyLabels, isOverdue, nextAction, outcome, partner, serviceLabels, statusLabels, type Action, type Need, type TeamRequest } from './queue'
 import NeedActions from './NeedActions'
 
@@ -10,12 +11,15 @@ interface Props {
   token: string | null
   owners: string[]
   partners: string[]
+  canAssign: boolean
+  staffMembers: StaffMember[]
+  demo: boolean
   onSelect: (need: Need) => void
   onClose: () => void
   onSaved: () => void
 }
 
-export default function CaseDetail({ request, need, initial, token, owners, partners, onSelect, onClose, onSaved }: Props) {
+export default function CaseDetail({ request, need, initial, token, owners, partners, canAssign, staffMembers, demo, onSelect, onClose, onSaved }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
   const openedForAction = useRef(!!initial)
   useEffect(() => {
@@ -53,7 +57,8 @@ export default function CaseDetail({ request, need, initial, token, owners, part
           <div><dt>{action ? 'Next action' : 'Outcome'}</dt><dd>{action ? actionLabel(action, need) : outcome(need)}</dd></div>
           {partner(need) && <div><dt>Partner</dt><dd>{partner(need)}</dd></div>}
         </dl>
-        <NeedActions key={need.id} need={need} initial={initial} token={token} owners={owners} partners={partners} onSaved={onSaved}/>
+        <NeedActions key={need.id} need={need} initial={initial} token={token} owners={owners} partners={partners}
+          canAssign={canAssign} staffMembers={staffMembers} demo={demo} onSaved={onSaved}/>
         {family && <dl className="case-family">
           <div><dt>Requested family support</dt><dd>{family.support}</dd></div>
           <div><dt>Safe follow-up</dt><dd>{family.safe_contact}</dd></div>
@@ -74,7 +79,8 @@ export default function CaseDetail({ request, need, initial, token, owners, part
       <details className="case-details"><summary>Request history <b>{history.length}</b></summary>
         {history.length ? <ol>{history.map((event, idx) => <li key={idx}>
           <strong>{historyLabels[event.action] || event.action} · {serviceLabels[event.service]}</strong>
-          <span>{event.detail}</span><small>{dated(event.at)}{event.source ? ` · ${event.source}` : ''}</small>
+          <span>{event.detail}</span><small>{dated(event.at)}{event.source ? ` · ${event.source}` : ''}
+            {event.actor_name ? ` · ${event.actor_name} (${event.actor_role === 'administrator' ? 'administrator' : 'caseworker'})` : ''}</small>
         </li>)}</ol> : <p>Updates will appear here as the team works on this request.</p>}
       </details>
     </div>

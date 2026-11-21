@@ -2,6 +2,7 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { supabase } from '../supabase'
 import { submissionKey } from '../intake/form'
+import type { StaffMember } from '../workspace'
 import { actionLabel, dated, nextAction, type Action, type Need } from './queue'
 
 const actions: Action[] = ['assign', 'partner_contact', 'follow_up', 'check_in', 'refer', 'decline', 'direct', 'fulfill', 'unmet']
@@ -15,13 +16,17 @@ interface Props {
   initial: Action | null
   owners: string[]
   partners: string[]
+  canAssign: boolean
+  staffMembers: StaffMember[]
+  demo: boolean
   onSaved: () => void
 }
 
-export default function NeedActions({ need, token, initial, owners, partners, onSaved }: Props) {
+export default function NeedActions({ need, token, initial, owners, partners, canAssign, staffMembers, demo, onSaved }: Props) {
   const activeRefs = need.referrals.filter(r => !r.declined_at)
   const [action, setAction] = useState<Action | null>(initial)
   const [value, setValue] = useState(initial === 'assign' ? (need.owner || '') : '')
+  const [assignee, setAssignee] = useState(need.assigned_staff_id || '')
   const [when, setWhen] = useState(initial === 'check_in' ? localTime(new Date()) : '')
   const [source, setSource] = useState('')
   const [attempt, setAttempt] = useState('')
@@ -39,6 +44,7 @@ export default function NeedActions({ need, token, initial, owners, partners, on
     setError('')
     setNotice('')
     setValue(next === 'assign' ? (need.owner || '') : '')
+    setAssignee(need.assigned_staff_id || '')
     setSource('')
     setWhen(next === 'check_in' ? localTime(new Date()) : '')
     setAttempt(next === 'decline' ? activeRefs[0]?.id || '' : '')
@@ -48,9 +54,12 @@ export default function NeedActions({ need, token, initial, owners, partners, on
     event.preventDefault()
     if (!action || saving.current) return
     const params: Record<string, string | null> = { p_token: token, p_need: need.id, p_action: action }
-    if (['assign', 'refer', 'unmet', 'partner_contact', 'check_in'].includes(action)) {
+    if (action === 'assign') {
+      if (demo) params.p_value = value.trim() || null
+      else params.p_assignee = assignee || null
+    } else if (['refer', 'unmet', 'partner_contact', 'check_in'].includes(action)) {
       params.p_value = value.trim()
-      if (action !== 'assign' && !params.p_value) { setError('Enter the requested details.'); return }
+      if (!params.p_value) { setError('Enter the requested details.'); return }
     }
     if (action === 'follow_up' || action === 'check_in') {
       const date = new Date(when)
@@ -84,6 +93,7 @@ export default function NeedActions({ need, token, initial, owners, partners, on
   }
 
   const secondary = actions.filter(a => a !== primary
+    && (a !== 'assign' || canAssign)
     && (a !== 'decline' || activeRefs.length > 0)
     && (a !== 'check_in' || need.follow_up)
     && (a !== 'partner_contact' || need.service === 'family_support'))
@@ -91,10 +101,17 @@ export default function NeedActions({ need, token, initial, owners, partners, on
     {need.status === 'open' && (action ? <form onSubmit={save}>
       <fieldset disabled={pending}>
         <legend>{actionLabel(action, need)}</legend>
-        {action === 'assign' && <label>Worker name
+        {action === 'assign' && (demo ? <label>Worker name
           <input list="case-workers" value={value} maxLength={80} onChange={e => setValue(e.target.value)} required={!need.owner} autoFocus />
           <datalist id="case-workers">{owners.map(name => <option key={name} value={name}/>)}</datalist>
-        </label>}
+        </label> : <label>Assigned staff member
+          <select value={assignee} onChange={e => setAssignee(e.target.value)} autoFocus>
+            <option value="">Unassigned</option>
+            {staffMembers.map(member => <option value={member.user_id} key={member.user_id}>
+              {member.display_name} · {member.role === 'administrator' ? 'Administrator' : 'Caseworker'}
+            </option>)}
+          </select>
+        </label>)}
         {(action === 'refer' || action === 'partner_contact') && <label>Partner name
           <input list="case-partners" value={value} maxLength={100} onChange={e => setValue(e.target.value)} required autoFocus />
           <datalist id="case-partners">{partners.map(name => <option key={name} value={name}/>)}</datalist>
@@ -121,7 +138,7 @@ export default function NeedActions({ need, token, initial, owners, partners, on
           <button className="team-secondary" type="button" onClick={() => choose(null)}>Cancel</button></div>
       </fieldset>
     </form> : <>
-      <div className="case-buttons">{primary && <button className="team-primary" onClick={() => choose(primary)}>{actionLabel(primary, need)}</button>}
+      <div className="case-buttons">{primary && (primary !== 'assign' || canAssign) && <button className="team-primary" onClick={() => choose(primary)}>{actionLabel(primary, need)}</button>}
         <button className="team-secondary" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>More actions</button></div>
       {expanded && <div className="case-action-list">{secondary.map(a => <button key={a} onClick={() => choose(a)}>{actionLabel(a, need)}</button>)}</div>}
     </>)}

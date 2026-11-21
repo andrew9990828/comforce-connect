@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/intake.test.mjs",
+    "test": "node --experimental-strip-types --test tests/intake.test.mjs tests/crime-data.test.mjs",
     "test:db": "supabase test db",
     "test:live": "node --env-file-if-exists=.env.local tests/walkthrough.mjs",
     "build": "npm run typecheck && vite build",

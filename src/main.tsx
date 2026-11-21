@@ -14,9 +14,10 @@ const staff = path === '/team' || staffIntake
 const queue = '/team' + (isStaffMode() ? '?mode=staff' : '')
 const log = '/request?source=call' + (isStaffMode() ? '&mode=staff' : '')
 const Page = path === '/' ? lazy(() => import('./impact/Impact'))
+  : path === '/safety' ? lazy(() => import('./safety/Safety'))
   : path === '/request' ? lazy(() => import('./intake/Intake'))
   : path === '/team' ? lazy(() => import('./team/Team')) : undefined
-document.title = 'ComForce Connect · ' + (staff ? 'Team workspace' : path === '/' ? 'Community impact' : path === '/request' ? 'Request help' : 'Page unavailable')
+document.title = 'ComForce Connect · ' + (staff ? 'Team workspace' : path === '/' ? 'Community impact' : path === '/safety' ? 'Neighborhood data' : path === '/request' ? 'Request help' : 'Page unavailable')
 
 function App() {
   return <>
@@ -36,12 +37,13 @@ function App() {
           </nav>
         </> : <nav className="site-nav" aria-label="Public navigation">
           <a href="/" aria-current={path === '/' ? 'page' : undefined}>Community impact</a>
+          <a href="/safety" aria-current={path === '/safety' ? 'page' : undefined}>Neighborhood data</a>
           <a href="/request" aria-current={path === '/request' ? 'page' : undefined}>Request help</a>
         </nav>}
       </div>
     </header>
     <div id="content" tabIndex={-1}>
-      {!configured && <aside className="setup-notice">Local setup needed. Set the public Supabase key in .env.local and restart Vite to connect the demo.</aside>}
+      {!configured && path !== '/safety' && <aside className="setup-notice">Local setup needed. Set the public Supabase key in .env.local and restart Vite to connect the demo.</aside>}
       {Page ? <Suspense fallback={<main className="missing-page" role="status">Loading…</main>}><Page /></Suspense>
         : <main className="missing-page"><h1>Page unavailable</h1><a href="/">Return to community impact</a></main>}
     </div>

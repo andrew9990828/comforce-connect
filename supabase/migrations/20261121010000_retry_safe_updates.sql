@@ -1,4 +1,4 @@
--- Make every case update idempotent. The operation registry keeps only a hash
+-- Make every case update idempotent after staff roles and auditing are installed. The registry keeps only a hash
 -- of the request payload while allowing an exact retry to return successfully.
 create table comforce.need_operations (
   need_id uuid not null references comforce.needs,
@@ -17,13 +17,14 @@ select need_id, operation_key, sha256(convert_to(jsonb_build_object(
   'value', detail,
   'referral', null,
   'when', extract(epoch from at),
-  'source', source
+  'source', source,
+  'assignee', null
 )::text,'UTF8'))
 from comforce.history
 where operation_key is not null;
 
 create function comforce.need_operation_hash(
-  p_action text, p_value text, p_referral uuid, p_when timestamptz, p_source text
+  p_action text, p_value text, p_referral uuid, p_when timestamptz, p_source text, p_assignee uuid
 ) returns bytea
 language sql immutable set search_path = '' as $$
   select sha256(convert_to(jsonb_build_object(
@@ -31,7 +32,8 @@ language sql immutable set search_path = '' as $$
     'value', nullif(btrim(p_value),''),
     'referral', p_referral,
     'when', extract(epoch from p_when),
-    'source', nullif(btrim(p_source),'')
+    'source', nullif(btrim(p_source),''),
+    'assignee', p_assignee
   )::text,'UTF8'))
 $$;
 
@@ -72,7 +74,7 @@ begin
     join comforce.requests r on r.id=n.request_id where r.workspace_id=template;
   insert into comforce.need_operations(need_id,operation_key,request_hash)
     select comforce.copy_id(workspace,h.need_id),h.operation_key,
-           comforce.need_operation_hash(h.action,h.detail,null,h.at,h.source)
+           comforce.need_operation_hash(h.action,h.detail,null,h.at,h.source,null)
     from comforce.history h join comforce.needs n on n.id=h.need_id
     join comforce.requests r on r.id=n.request_id
     where r.workspace_id=template and h.operation_key is not null
@@ -82,22 +84,42 @@ end $$;
 
 create or replace function public.update_need(
   p_need uuid, p_action text, p_value text default null, p_referral uuid default null,
-  p_when timestamptz default null, p_token text default null, p_source text default null, p_key uuid default null
+  p_when timestamptz default null, p_token text default null, p_source text default null,
+  p_key uuid default null, p_assignee uuid default null
 ) returns void language plpgsql security definer set search_path = '' as $$
 declare
   workspace uuid := comforce.resolve_workspace(p_token,true);
   current_need comforce.needs;
   prior comforce.need_operations;
+  actor_uid uuid;
+  actor_email text;
+  actor_name text;
+  actor_role text;
+  target_name text;
+  request_id uuid;
   label text := nullif(btrim(p_value),'');
   verified_source text := nullif(btrim(p_source),'');
-  request_hash bytea := comforce.need_operation_hash(p_action,p_value,p_referral,p_when,p_source);
+  request_hash bytea := comforce.need_operation_hash(p_action,p_value,p_referral,p_when,p_source,p_assignee);
   provider_name text := 'ComForce';
   detail text;
   occurred_at timestamptz := clock_timestamp();
 begin
-  select n.* into current_need from comforce.needs n join comforce.requests r on r.id=n.request_id
-  where n.id=p_need and r.workspace_id is not distinct from workspace for update of n;
-  if not found then raise insufficient_privilege using message='This need is unavailable in this workspace.'; end if;
+  if workspace is null then
+    select user_id,email,display_name,role into actor_uid,actor_email,actor_name,actor_role
+    from comforce.current_staff();
+    if not found then raise insufficient_privilege using message='Verified staff access is required.'; end if;
+    if p_action='assign' and actor_role<>'administrator' then
+      raise insufficient_privilege using message='Only administrators can assign or reassign cases.';
+    end if;
+  elsif p_assignee is not null then
+    raise exception using errcode='22023', message='Demo assignments use a worker name.';
+  end if;
+
+  select n,r.id into current_need,request_id from comforce.needs n join comforce.requests r on r.id=n.request_id
+  where n.id=p_need and r.workspace_id is not distinct from workspace
+    and (workspace is not null or actor_role='administrator' or n.assigned_staff_id=actor_uid)
+  for update of n;
+  if not found then raise insufficient_privilege using message='This need is unavailable or is not assigned to you.'; end if;
   if p_key is null then
     raise exception using errcode='22023', message='Every update requires an operation key.';
   end if;
@@ -116,8 +138,20 @@ begin
   if current_need.status<>'open' then raise exception 'This need is already closed.'; end if;
   case p_action
   when 'assign' then
-    update comforce.needs set owner=label where id=p_need;
-    detail := coalesce(label,'Unassigned');
+    if workspace is null then
+      if p_assignee is not null then
+        select coalesce(nullif(btrim(s.display_name),''),nullif(btrim(u.raw_user_meta_data->>'full_name'),''),split_part(s.email,'@',1))
+          into target_name
+        from comforce.staff s join auth.users u on lower(u.email)=lower(s.email)
+        where u.id=p_assignee and u.email_confirmed_at is not null and (s.user_id is null or s.user_id=u.id);
+        if not found then raise exception using errcode='22023', message='Choose an active staff member.'; end if;
+      end if;
+      update comforce.needs set assigned_staff_id=p_assignee,owner=target_name where id=p_need;
+      detail := coalesce(target_name,'Unassigned');
+    else
+      update comforce.needs set owner=label where id=p_need;
+      detail := coalesce(label,'Unassigned');
+    end if;
   when 'direct' then detail := 'ComForce will provide direct help.';
   when 'refer' then
     if label is null then raise exception 'Enter the partner name.'; end if;
@@ -153,10 +187,16 @@ begin
     detail := label;
   else raise exception 'Unknown need action.';
   end case;
-  insert into comforce.history(need_id,action,detail,at,source,operation_key)
-  values(p_need,p_action,detail,occurred_at,case when p_action='check_in' then verified_source end,p_key);
+  insert into comforce.history(need_id,action,detail,at,source,operation_key,actor_uid,actor_name,actor_role)
+  values(p_need,p_action,detail,occurred_at,case when p_action='check_in' then verified_source end,p_key,
+    actor_uid,actor_name,actor_role);
   insert into comforce.need_operations(need_id,operation_key,request_hash)
   values(p_need,p_key,request_hash);
+  if workspace is null then
+    insert into comforce.audit_log(actor_uid,actor_email,actor_role,action,request_id,need_id,detail)
+    values(actor_uid,actor_email,actor_role,p_action,request_id,p_need,
+      jsonb_strip_nulls(jsonb_build_object('detail',detail,'assignee',case when p_action='assign' then p_assignee end)));
+  end if;
 end $$;
 
-revoke all on function comforce.need_operation_hash(text,text,uuid,timestamptz,text) from public,anon,authenticated;
+revoke all on function comforce.need_operation_hash(text,text,uuid,timestamptz,text,uuid) from public,anon,authenticated;

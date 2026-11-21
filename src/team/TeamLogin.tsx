@@ -37,7 +37,7 @@ export default function TeamLogin() {
   }
   return <main className="team-page"><section className="team-login">
     <h1>Staff sign-in</h1>
-    <p>Use your approved staff email to access the staff queue.</p>
+    <p>Use your approved staff email. Administrators manage assignments; caseworkers see only cases assigned to them.</p>
     <form onSubmit={signIn}>
       {sentTo ? <><p role="status">Enter the six-digit code sent to <strong>{sentTo}</strong>.</p>
         <label>Six-digit sign-in code<input value={code} onChange={e => setCode(e.target.value)}

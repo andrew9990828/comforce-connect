@@ -1,13 +1,16 @@
 -- Rollback-only TAP checks. Contributor: OpenAI Codex (GPT-6), access, atomicity and accounting tests.
 begin;
 set local plpgsql.check_asserts = on;
-select '1..8';
+select '1..10';
 
--- One temporary staff login and one visitor. The application authenticates with GoTrue.
-insert into comforce.staff(email) values ('worker-test@example.invalid');
+-- One administrator, one caseworker and one visitor. The application authenticates with GoTrue.
+insert into comforce.staff(email,display_name,role) values
+  ('worker-test@example.invalid','Test Administrator','administrator'),
+  ('caseworker-test@example.invalid','Test Caseworker','caseworker');
 insert into auth.users(id,email,email_confirmed_at) values
   ('42667ca8-5125-4db0-834e-000000000001','worker-test@example.invalid',now()),
-  ('42667ca8-5125-4db0-834e-000000000002','visitor-test@example.invalid',now());
+  ('42667ca8-5125-4db0-834e-000000000002','visitor-test@example.invalid',now()),
+  ('42667ca8-5125-4db0-834e-000000000004','caseworker-test@example.invalid',now());
 
 do $$
 begin
@@ -17,6 +20,8 @@ begin
   assert not has_schema_privilege('authenticated','comforce','usage');
   assert to_regprocedure('public.team_queue()') is null;
   assert to_regprocedure('public.update_need(uuid,text,text,uuid,timestamptz)') is null;
+  assert to_regprocedure('public.update_need(uuid,text,text,uuid,timestamptz,text,text,uuid)') is null;
+  assert to_regprocedure('public.update_need(uuid,text,text,uuid,timestamptz,text,text,uuid,uuid)') is not null;
 end $$;
 select 'ok 1 - base tables are private and unscoped overloads are removed';
 
@@ -108,8 +113,12 @@ begin
   perform public.update_need(food,'fulfill',p_key=>food_fulfill_key);
   assert (select count(*)=1 from comforce.history where need_id=food and action='fulfill');
   assert (select provider='ComForce' and fulfilled_at is not null from comforce.needs where id=food);
-  perform public.update_need(ride,'assign','Dee',p_key=>assign_key);
-  perform public.update_need(ride,'assign','Dee',p_key=>assign_key);
+  perform public.update_need(ride,'assign',p_assignee=>'42667ca8-5125-4db0-834e-000000000004',p_key=>assign_key);
+  perform public.update_need(ride,'assign',p_assignee=>'42667ca8-5125-4db0-834e-000000000004',p_key=>assign_key);
+  begin
+    perform public.update_need(ride,'assign',p_assignee=>'42667ca8-5125-4db0-834e-000000000001',p_key=>assign_key);
+    raise exception 'Mismatched assignee retry was accepted';
+  exception when invalid_parameter_value then null; end;
   perform public.update_need(ride,'refer','Example First',p_key=>first_referral_key);
   perform public.update_need(ride,'refer','Example First',p_key=>first_referral_key);
   select id into strict declined from comforce.referrals where need_id=ride;
@@ -117,7 +126,8 @@ begin
   perform public.update_need(ride,'decline',p_referral=>declined,p_key=>decline_key);
   perform public.update_need(ride,'follow_up',p_when=>'2049-12-30 15:00-06',p_key=>follow_key);
   perform public.update_need(ride,'follow_up',p_when=>'2049-12-30 15:00-06',p_key=>follow_key);
-  assert (select status='open' and follow_up is not null and owner='Dee' from comforce.needs where id=ride);
+  assert (select status='open' and follow_up is not null and owner='Test Caseworker'
+          and assigned_staff_id='42667ca8-5125-4db0-834e-000000000004' from comforce.needs where id=ride);
   perform public.update_need(ride,'refer','Example Second',p_key=>second_referral_key);
   perform public.update_need(ride,'refer','Example Second',p_key=>second_referral_key);
   select id into strict accepted from comforce.referrals where need_id=ride and partner='Example Second';
@@ -128,6 +138,8 @@ begin
   assert not exists(select 1 from comforce.history where need_id in (food,ride) and operation_key is null);
   assert (select count(*) from comforce.need_operations where need_id in (food,ride)) =
          (select count(*) from comforce.history where need_id in (food,ride));
+  assert (select bool_and(actor_uid='42667ca8-5125-4db0-834e-000000000001' and actor_role='administrator')
+          from comforce.history where need_id in (food,ride) and actor_uid is not null);
 end $$;
 select 'ok 5 - confirmed staff can deliver, retry, record a refusal and reroute a ride';
 
@@ -170,12 +182,71 @@ select 'ok 7 - closed-unmet needs preserve their reason and contribute zero fulf
 
 set local role authenticated;
 do $$
-declare queue jsonb;
+declare queue jsonb; ref text; assigned_open uuid; assign_key uuid := gen_random_uuid();
 begin
   queue := public.team_queue();
   assert exists(select 1 from jsonb_array_elements(queue) c
                 where c->>'description'='Fictional test' and jsonb_array_length(c->'needs')=2);
+  ref := public.submit_request(gen_random_uuid(),array['shelter'],'Assigned caseworker test','Unknown',
+    'email','assigned@example.invalid','web');
+  select n.id into strict assigned_open from comforce.needs n join comforce.requests r on r.id=n.request_id
+    where r.reference=ref;
+  perform public.update_need(assigned_open,'assign',p_assignee=>'42667ca8-5125-4db0-834e-000000000004',p_key=>assign_key);
+  perform set_config('comforce_test.assigned_open',assigned_open::text,true);
 end $$;
 reset role;
 select 'ok 8 - staff queue includes both sibling needs';
+
+-- A caseworker receives only assigned needs, even when another need belongs to the same request.
+set local request.jwt.claims = '{"sub":"42667ca8-5125-4db0-834e-000000000004","email":"caseworker-test@example.invalid","role":"authenticated"}';
+do $$
+declare queue jsonb; context jsonb; ride uuid; food uuid; direct_key uuid := gen_random_uuid();
+  assigned_open uuid := current_setting('comforce_test.assigned_open')::uuid;
+begin
+  select id into strict ride from comforce.needs where assigned_staff_id='42667ca8-5125-4db0-834e-000000000004';
+  select n.id into strict food from comforce.needs n join comforce.requests r on r.id=n.request_id
+    where r.submission_key='42667ca8-5125-4db0-834e-000000000003' and n.service='food';
+  queue := public.team_queue();
+  assert jsonb_array_length(queue)=2;
+  assert not exists(select 1 from jsonb_array_elements(queue) q, jsonb_array_elements(q->'needs') n
+                    where (n->>'id')::uuid=food);
+  assert exists(select 1 from jsonb_array_elements(queue) q, jsonb_array_elements(q->'needs') n
+                where (n->>'id')::uuid=ride);
+  assert exists(select 1 from jsonb_array_elements(queue) q, jsonb_array_elements(q->'needs') n
+                where (n->>'id')::uuid=assigned_open);
+  context := public.staff_context();
+  assert context->>'role'='caseworker' and context->>'display_name'='Test Caseworker'
+    and context->>'can_assign'='false' and jsonb_array_length(context->'staff')=0;
+  begin
+    perform public.update_need(food,'direct');
+    raise exception 'caseworker altered an unassigned sibling need';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform public.update_need(ride,'assign',p_assignee=>'42667ca8-5125-4db0-834e-000000000001');
+    raise exception 'caseworker reassigned a case';
+  exception when insufficient_privilege then null; end;
+  perform public.update_need(assigned_open,'direct',p_key=>direct_key);
+  assert exists(select 1 from comforce.history
+    where need_id=assigned_open and action='direct'
+      and actor_uid='42667ca8-5125-4db0-834e-000000000004' and actor_role='caseworker');
+end $$;
+select 'ok 9 - caseworkers see only assigned needs and cannot assign cases';
+
+set local request.jwt.claims = '{"sub":"42667ca8-5125-4db0-834e-000000000001","email":"worker-test@example.invalid","role":"authenticated"}';
+do $$
+declare context jsonb;
+begin
+  context := public.staff_context();
+  assert context->>'role'='administrator' and context->>'can_assign'='true'
+    and jsonb_array_length(context->'staff')=2;
+  assert not exists(select 1 from comforce.audit_log where actor_uid is null);
+  assert exists(select 1 from comforce.audit_log
+    where actor_uid='42667ca8-5125-4db0-834e-000000000001' and action='request_submit');
+  assert exists(select 1 from comforce.audit_log
+    where actor_uid='42667ca8-5125-4db0-834e-000000000001' and action='assign'
+      and (detail->>'assignee')::uuid='42667ca8-5125-4db0-834e-000000000004');
+  assert exists(select 1 from comforce.audit_log
+    where actor_uid='42667ca8-5125-4db0-834e-000000000004' and actor_role='caseworker' and action='direct');
+end $$;
+select 'ok 10 - administrators receive the staff directory and every real action is attributable';
 rollback;
