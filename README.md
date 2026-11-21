@@ -5,10 +5,11 @@ Community Task Force MKE helps Milwaukee residents get food, rides and family su
 | Open on the demo laptop | What to try |
 | --- | --- |
 | [Community impact](http://127.0.0.1:5173/) | Tap a neighborhood and change the month. The map, outcome totals and six-month trend update together. |
+| [Neighborhood data](http://127.0.0.1:5173/safety) | Watch a 30-second heatmap of aggregated MPD incidents, pause on a month and compare the same 2025–2026 period. |
 | [Request help](http://127.0.0.1:5173/request) | Ask for multiple services and receive one reference. [Start with family support](http://127.0.0.1:5173/request?service=family_support). |
 | [Team workspace](http://127.0.0.1:5173/team) | Open a private fictional queue, pair a resident device, assign a worker and record a callback. |
 
-Three routes share one React/Vite build. Each new browser gets its own copy of the synthetic seed. A paired resident link grants submission and aggregate access to the laptop’s workspace. The separate [verified staff entrance](http://127.0.0.1:5173/team?mode=staff) reads the original staff records.
+Four routes share one React/Vite build. Each new browser gets its own copy of the synthetic seed. A paired resident link grants submission and aggregate access to the laptop’s workspace. The separate [verified staff entrance](http://127.0.0.1:5173/team?mode=staff) reads the original staff records. Neighborhood data is a static, aggregate public-data view and does not require Supabase.
 
 ```mermaid
 flowchart LR
@@ -25,6 +26,7 @@ flowchart LR
 - **Reported by ComForce MKE.** The organization reports 10,000+ Milwaukee residents served and 300+ volunteers and partners. It gives no reporting period. Its Missing Persons Network provides family support. [Organization](https://www.comforcemilwaukee.com/) · [Programs](https://www.comforcemilwaukee.com/programs)
 - **Milwaukee historical context.** The city recorded 4,618 people reported missing to MPD in 2002 and 4,316 in 2004. A person can appear in multiple reports. These dated citywide snapshots measure reporting to police. [2002, p. 41](https://city.milwaukee.gov/ImageLibrary/Groups/cityFPC/Reports/2002PSAFETY.pdf#page=41) · [2004, p. 26](https://city.milwaukee.gov/ImageLibrary/Groups/cityFPC/Reports/2004PSAFETY.pdf#page=26)
 - **Interactive demo activity.** April–November 2026 history covers six neighborhoods. Requests helped counts distinct requests with at least one confirmed delivery. Referrals count when sent. Completed family callbacks count independently of fulfillment. All use the month of the event in Chicago.
+- **Published neighborhood context.** The `/safety` page counts unique MPD NIBRS case numbers within the same six City neighborhood polygons. The looping map covers January–October 2026; the table compares the same period in 2025 and 2026. Counts are not population-adjusted rates or safety ratings. [Incident data](https://data.milwaukee.gov/dataset/e5feaad3-ee73-418c-b65d-ef810c199390/resource/87843297-a6fa-46d4-ba5d-cb342fb2d3bb/download/wibr.csv) · [City disclaimer](https://staticwebfiles.milwaukee.gov/main/compass/disclaimerQuery.html)
 - Figure definitions and evidence are in [publishedFacts.ts](src/impact/publishedFacts.ts). The map uses public-domain City of Milwaukee neighborhood boundaries and Census hydrography. [City GIS](https://milwaukeemaps.milwaukee.gov/arcgis/rest/services/AGO/neighborhoods/MapServer/0) · [City data policy](https://city.milwaukee.gov/ImageLibrary/Groups/cityOpenData/MilwaukeeOpenDataPolicy.pdf) · [2025 Census TIGER/Line water, Milwaukee](https://www2.census.gov/geo/tiger/TIGER2025/AREAWATER/tl_2025_55079_areawater.zip) · [Ozaukee](https://www2.census.gov/geo/tiger/TIGER2025/AREAWATER/tl_2025_55089_areawater.zip)
 
 ## Hosting checklist
