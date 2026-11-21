@@ -4,7 +4,8 @@ import { supabase } from './supabase'
 const ownerKey = 'comforce.demo.owner.v1'
 const pairingKey = 'comforce.demo.resident.v1'
 const validToken = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
-type Demo = { staff_token: string; resident_token: string }
+const validExpiry = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) > Date.now()
+type Demo = { staff_token: string; resident_token: string; expires_at: string }
 let creating: Promise<Demo> | undefined
 
 function storedDemo(): Demo | undefined {
@@ -12,8 +13,9 @@ function storedDemo(): Demo | undefined {
   if (!saved) return
   try {
     const demo = JSON.parse(saved)
-    if (validToken(demo?.staff_token) && validToken(demo?.resident_token)) return demo
+    if (validToken(demo?.staff_token) && validToken(demo?.resident_token) && validExpiry(demo?.expires_at)) return demo
   } catch { /* An incomplete browser record can be replaced with a new private demo. */ }
+  localStorage.removeItem(ownerKey)
 }
 
 async function ownDemo(): Promise<Demo> {
@@ -24,10 +26,15 @@ async function ownDemo(): Promise<Demo> {
       const shared = storedDemo()
       if (shared) return shared
       const result = await supabase.rpc('create_demo_workspace')
-      if (result.error || !validToken(result.data?.staff_token) || !validToken(result.data?.resident_token)) {
+      if (result.error || !validToken(result.data?.staff_token) || !validToken(result.data?.resident_token)
+        || !validExpiry(result.data?.expires_at)) {
         throw new Error('The demo workspace could not be opened. Please try again.')
       }
-      const demo = storedDemo() ?? { staff_token: result.data.staff_token, resident_token: result.data.resident_token }
+      const demo = storedDemo() ?? {
+        staff_token: result.data.staff_token,
+        resident_token: result.data.resident_token,
+        expires_at: result.data.expires_at,
+      }
       localStorage.setItem(ownerKey, JSON.stringify(demo))
       return demo
     }
@@ -68,6 +75,13 @@ export function acceptResidentLink() {
 export async function residentToken(): Promise<string> {
   const paired = localStorage.getItem(pairingKey)
   return validToken(paired) ? paired : (await ownDemo()).resident_token
+}
+
+// The public atlas can use the shared fictional template until this browser joins or owns a writable demo.
+export function impactToken(): string | null {
+  const paired = localStorage.getItem(pairingKey)
+  if (validToken(paired)) return paired
+  return storedDemo()?.resident_token ?? null
 }
 
 export function residentLink(token: string, origin = location.origin) {

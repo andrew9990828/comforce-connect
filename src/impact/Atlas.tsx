@@ -1,7 +1,7 @@
 // Interactive demo atlas. Codex (GPT-6) implemented scoped aggregate reads, month comparisons, map selection and trend controls.
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
-import { residentToken } from '../workspace'
+import { impactToken } from '../workspace'
 import { neighborhoods } from './neighborhoods'
 import NeighborhoodMap from './NeighborhoodMap'
 
@@ -53,8 +53,7 @@ export default function Atlas() {
       pending = controller
       const timeout = window.setTimeout(() => controller.abort(), 8000)
       try {
-        const token = await residentToken()
-        if (disposed) return
+        const token = impactToken()
         const result = await supabase.rpc('public_impact', { p_token: token }).abortSignal(controller.signal)
         if (result.error) throw result.error
         if (!disposed) {

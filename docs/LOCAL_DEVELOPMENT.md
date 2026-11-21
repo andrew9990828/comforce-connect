@@ -1,6 +1,6 @@
 # Run ComForce Connect locally
 
-Use fictional details. The public entry is [Community impact](http://127.0.0.1:5173/), intake is [Request help](http://127.0.0.1:5173/request), and judges open the [Team workspace](http://127.0.0.1:5173/team) directly. Use the same browser and site address between visits to reopen your demo.
+Use fictional details. The public entry is [Community impact](http://127.0.0.1:5173/), intake is [Request help](http://127.0.0.1:5173/request), and judges open the [Team workspace](http://127.0.0.1:5173/team) directly. The public atlas uses a shared read-only template. Writable team and intake workspaces last 24 hours, so use the same browser and site address during a demo session.
 
 ## Andrew’s laptop · tested standalone setup
 
@@ -24,7 +24,7 @@ $wifi = (Get-NetIPConfiguration -InterfaceAlias 'Wi-Fi').IPv4Address.IPAddress
 To rebuild this standalone presentation after a code change, open the running loopback Impact page with browser developer tools. In **Network**, reload, select the `public_impact` request and copy only the value of its `apikey` request header. In a Node 22.15+ terminal at the repo root, run `$env:VITE_SUPABASE_PUBLISHABLE_KEY = (Get-Clipboard).Trim()`, then `$env:VITE_SUPABASE_URL = '/api'` and `npm run build`. This uses the same public configuration as the running frontend and leaves `.env.local` intact.
 
 1. Open the printed **Network URL** with `/team` on the laptop. Choose **Pair a resident device → Copy resident link**. Share that link privately with the phone. If you opened Team on loopback, enter the full Network URL in **Laptop’s Wi-Fi address** before copying.
-2. Open the link on the phone. This pairs resident intake and Impact to that laptop queue. For the family story, select **Missing person / family support** and **Transportation**. Another judge can open plain `/team` in their own browser to start a separate workspace.
+2. Open the link on the phone. This pairs resident intake and Impact to that laptop queue. For the family story, select **Missing person / family support** and **Transportation**. Another judge can open plain `/team` in their own browser to start a separate workspace. The database keeps no more than 50 active visitor workspaces and removes expired ones before provisioning another.
 3. To rehearse on one computer, use a private window for the resident and a normal window for the team. To reuse changes, keep the original browser storage. If a phone cannot reach the Network URL, check private-network firewall access for that frontend and Wi-Fi client isolation.
 
 **Optional verified staff.** Open [Staff sign-in](http://127.0.0.1:5173/team?mode=staff). Enter `von@comforce.example` and choose **Send sign-in code**. In a second tab open [local Mailpit](http://127.0.0.1:54324/), copy the newest six-digit code, return to the staff tab and choose **Open workspace**. This path opens the preserved original cases. The fictional team demo opens immediately.
