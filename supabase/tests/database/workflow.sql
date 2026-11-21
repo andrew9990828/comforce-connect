@@ -189,8 +189,8 @@ begin
                 where c->>'description'='Fictional test' and jsonb_array_length(c->'needs')=2);
   ref := public.submit_request(gen_random_uuid(),array['shelter'],'Assigned caseworker test','Unknown',
     'email','assigned@example.invalid','web');
-  select n.id into strict assigned_open from comforce.needs n join comforce.requests r on r.id=n.request_id
-    where r.reference=ref;
+  select (n->>'id')::uuid into strict assigned_open from jsonb_array_elements(public.team_queue()) c,
+    jsonb_array_elements(c->'needs') n where c->>'reference'=ref;
   perform public.update_need(assigned_open,'assign',p_assignee=>'42667ca8-5125-4db0-834e-000000000004',p_key=>assign_key);
   perform set_config('comforce_test.assigned_open',assigned_open::text,true);
 end $$;
@@ -203,7 +203,7 @@ do $$
 declare queue jsonb; context jsonb; ride uuid; food uuid; direct_key uuid := gen_random_uuid();
   assigned_open uuid := current_setting('comforce_test.assigned_open')::uuid;
 begin
-  select id into strict ride from comforce.needs where assigned_staff_id='42667ca8-5125-4db0-834e-000000000004';
+  select id into strict ride from comforce.needs where assigned_staff_id='42667ca8-5125-4db0-834e-000000000004' and id<>assigned_open;
   select n.id into strict food from comforce.needs n join comforce.requests r on r.id=n.request_id
     where r.submission_key='42667ca8-5125-4db0-834e-000000000003' and n.service='food';
   queue := public.team_queue();
