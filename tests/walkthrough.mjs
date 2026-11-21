@@ -216,7 +216,29 @@ async function pairedDemo() {
   await result('update_need', confirm)
   await dialog.getByRole('group', { name: 'Select a need' }).getByRole('button', { name: /Transportation/ }).click()
   await action(desk, 'Assign a worker', d => d.getByLabel('Worker name').fill('Von'))
-  await action(desk, 'Send referral', d => d.getByLabel('Partner name').fill('Fictional Ride Partner'))
+  let lostReferral
+  await desk.route('**/rest/v1/rpc/update_need', async route => {
+    lostReferral = route.request().postDataJSON()
+    const committed = await route.fetch()
+    assert.ok(committed.ok(), 'Lost-response referral did not commit.')
+    await route.fulfill({ status: 503, contentType: 'application/json', body: '{"message":"Response lost after commit"}' })
+  }, { times: 1 })
+  await dialog.getByRole('button', { name: 'Send referral', exact: true }).click()
+  await dialog.getByLabel('Partner name').fill('Fictional Ride Partner')
+  await dialog.getByRole('button', { name: 'Save update', exact: true }).click()
+  await dialog.getByRole('alert').filter({ hasText: 'Could not save this update' }).waitFor()
+  assert.ok(lostReferral?.p_key, 'The unconfirmed referral did not have an operation key.')
+
+  await desk.reload()
+  await dialog.getByRole('button', { name: 'Send referral', exact: true }).click()
+  await dialog.getByLabel('Partner name').fill('Fictional Ride Partner')
+  const retriedReferral = reply(desk, 'update_need')
+  await dialog.getByRole('button', { name: 'Save update', exact: true }).click()
+  const retryResponse = await retriedReferral
+  await read(retryResponse, 'Reloaded referral retry')
+  assert.equal(retryResponse.request().postDataJSON().p_key, lostReferral.p_key)
+  await dialog.getByRole('status').filter({ hasText: 'Update saved' }).waitFor()
+  console.log('Committed referral with a lost response, reloaded and retried with one operation key.')
   const due = '2026-12-05T14:30'
   await action(desk, 'Schedule follow-up', d => d.getByLabel(/Follow-up due/).fill(due))
   await dialog.getByRole('button', { name: /Food.*Fulfilled/i }).waitFor()

@@ -15,6 +15,7 @@ export type StaffContext = {
   displayName: string
   canAssign: boolean
   staff: StaffMember[]
+  legacyApi: boolean
 }
 let creating: Promise<Demo> | undefined
 
@@ -58,7 +59,22 @@ export async function staffContext(): Promise<StaffContext> {
   const demo = isStaffMode() ? null : await ownDemo()
   const token = demo?.staff_token ?? null
   const result = await supabase.rpc('staff_context', { p_token: token })
-  if (result.error) throw result.error
+  if (result.error) {
+    const message = result.error.message || ''
+    const missing = result.error.code === 'PGRST202'
+      || (result.error.code === '42883' && message.includes('staff_context'))
+    if (!missing) throw result.error
+    return {
+      token,
+      residentToken: demo?.resident_token ?? null,
+      role: 'administrator',
+      userId: null,
+      displayName: demo ? 'Demo administrator' : 'Staff',
+      canAssign: true,
+      staff: [],
+      legacyApi: true,
+    }
+  }
   return {
     token,
     residentToken: demo?.resident_token ?? null,
@@ -67,6 +83,7 @@ export async function staffContext(): Promise<StaffContext> {
     displayName: result.data.display_name,
     canAssign: result.data.can_assign,
     staff: result.data.staff,
+    legacyApi: false,
   }
 }
 

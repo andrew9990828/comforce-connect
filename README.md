@@ -46,6 +46,20 @@ npx supabase db push
 3. Load demo data separately. In this project’s **SQL Editor**, run the contents of [demo_seed.sql](supabase/demo_seed.sql) once. Reruns preserve the template and all existing workspaces. The older [seed.sql](supabase/seed.sql) supplies the local verified-staff fixtures and is only needed for that local test setup.
 4. Keep the Data API enabled with `public` exposed and `comforce` private. Demo visitors need only the publishable key. Leave anonymous Auth sign-ins disabled. For verified staff, enable Email Auth and email confirmation, configure outbound mail, select a six-digit OTP, and include `{{ .Token }}` in both **Confirm signup** and **Magic link** email templates. Set the production Site URL to your Pages HTTPS address. Provision each Auth user first, then add their verified lowercase address, display name and role with `insert into comforce.staff(email,display_name,role) values ('admin@example.org','Alex','administrator');`. Use `caseworker` for staff who should see and update only assigned needs. Administrators can see the full queue and assign or reassign work. Every real staff submission and case action stores `auth.uid()` plus role and display-name snapshots in private audit/history records. [API keys](https://supabase.com/docs/guides/getting-started/api-keys) · [Email OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless)
 
+### Staff-role rollout
+
+Apply the database migrations before deploying the matching frontend. Existing allowlisted accounts default to `caseworker`; the migration promotes only the alphabetically first existing address as the bootstrap administrator. Before real use, verify that account and explicitly set every additional administrator with a reviewed SQL update. Legacy owner labels are linked only when one verified account matches; unmatched labels appear in **Unassigned** as “link account” work for an administrator.
+
+Already-open tabs remain usable during the transition: the new frontend falls back when `staff_context` has not reached the database yet, and the new database accepts the old frontend’s label-based, keyless updates while generating and auditing a server operation ID. After both halves are deployed, ask staff to finish any visible save, then hard-refresh or close and reopen every staff tab. This refresh is required to load role-scoped screens and operation keys that survive a lost response plus reload.
+
+Use this release order and smoke check:
+
+1. Run `npx supabase db push --dry-run`, then `npx supabase db push`.
+2. Confirm the bootstrap administrator can see **Unassigned**, assign one need, and that a caseworker sees only that assigned need.
+3. Deploy the frontend, hard-refresh all staff tabs, and log a phone request as a caseworker. The saved case must open and remain in that worker’s queue.
+4. On a mixed transportation/family-support request, assign only transportation to the caseworker. Confirm the worker cannot see the family safe-contact or agency fields.
+5. Simulate a lost response while saving a referral, reload, and retry the same referral. Confirm the history and referral list each contain one entry.
+
 ### Cloudflare Pages
 
 After Andrew promotes the feature to `main`, choose **Workers & Pages → Create → Pages → Connect to Git** and select `andrew9990828/comforce-connect`. Use these production build settings. [Build settings](https://developers.cloudflare.com/pages/configuration/build-configuration/) · [Node version](https://developers.cloudflare.com/pages/configuration/build-image/)
