@@ -71,12 +71,12 @@ export default function NeedActions({ need, token, initial, owners, partners, ca
       params.p_source = source.trim()
     }
     if ((action === 'decline' || action === 'fulfill') && attempt) params.p_referral = attempt
-    const operation = await pendingOperation(params)
-    params.p_key = operation.key
     saving.current = true
     setPending(true)
     setError('')
     try {
+      const operation = pendingOperation(params)
+      params.p_key = operation.key
       const { error } = await supabase.rpc('update_need', params)
       if (error) throw error
       operation.confirm()

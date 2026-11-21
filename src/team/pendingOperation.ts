@@ -1,3 +1,6 @@
+// Pending case updates. OpenAI Codex (GPT-6) fixed retry tracking on HTTP and when storage is unavailable.
+import { sha256 } from '@noble/hashes/sha2.js'
+import { bytesToHex } from '@noble/hashes/utils.js'
 import { submissionKey } from '../intake/form.ts'
 
 const prefix = 'comforce.pending-operation.v1.'
@@ -7,11 +10,6 @@ type OperationStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'ke
 
 function stablePayload(params: Record<string, string | null>) {
   return JSON.stringify(Object.entries(params).sort(([left], [right]) => left.localeCompare(right)))
-}
-
-async function digest(payload: string) {
-  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload))
-  return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
 function prune(storage: OperationStorage, now: number) {
@@ -27,25 +25,38 @@ function prune(storage: OperationStorage, now: number) {
   }
 }
 
-export async function pendingOperation(
+const pendingInPage = new Map<string, StoredOperation>()
+
+export function pendingOperation(
   params: Record<string, string | null>,
-  storage: OperationStorage = sessionStorage,
+  storage?: OperationStorage,
   now = Date.now(),
 ) {
-  try {
-    prune(storage, now)
-    const name = prefix + await digest(stablePayload(params))
-    const existing = storage.getItem(name)
-    if (existing) {
-      const saved = JSON.parse(existing) as StoredOperation
-      if (saved.key && now - saved.createdAt <= lifetime) {
-        return { key: saved.key, confirm: () => storage.removeItem(name) }
-      }
-    }
-    const saved = { key: submissionKey(), createdAt: now }
-    storage.setItem(name, JSON.stringify(saved))
-    return { key: saved.key, confirm: () => storage.removeItem(name) }
-  } catch {
-    return { key: submissionKey(), confirm: () => undefined }
+  const name = prefix + bytesToHex(sha256(new TextEncoder().encode(stablePayload(params))))
+  for (const [id, operation] of pendingInPage) {
+    if (now - operation.createdAt > lifetime) pendingInPage.delete(id)
   }
+  let saved = pendingInPage.get(name)
+  try {
+    storage ??= sessionStorage
+    prune(storage, now)
+    const existing = storage.getItem(name)
+    if (existing) saved = JSON.parse(existing) as StoredOperation
+    saved ??= { key: submissionKey(), createdAt: now }
+    storage.setItem(name, JSON.stringify(saved))
+  } catch {
+    // A browser can block storage access. Retain the key for retries in this page.
+    saved ??= { key: submissionKey(), createdAt: now }
+  }
+  pendingInPage.set(name, saved)
+  const { key } = saved
+  return { key, confirm() {
+    if (pendingInPage.get(name)?.key === key) pendingInPage.delete(name)
+    try {
+      const existing = storage?.getItem(name)
+      if (existing && JSON.parse(existing).key === key) storage?.removeItem(name)
+    } catch {
+      // The server already confirmed the write even if browser storage became unavailable.
+    }
+  } }
 }

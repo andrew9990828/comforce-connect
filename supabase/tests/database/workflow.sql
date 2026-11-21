@@ -148,10 +148,20 @@ update comforce.referrals set sent_at='2049-12-28 10:00-06',
   declined_at=case when declined_at is not null then '2049-12-29 10:00-06'::timestamptz end
 where need_id in (select n.id from comforce.needs n join comforce.requests r on n.request_id=r.id
                   where r.submission_key='42667ca8-5125-4db0-834e-000000000003');
+set local role anon;
+do $$ begin
+  perform set_config('comforce_test.template_totals', (
+    select jsonb_agg(to_jsonb(i) order by i.month,i.neighborhood)::text from public.public_impact(null,true) i
+  ),true);
+end $$;
+reset role;
 set local role authenticated;
 do $$
 declare totals record;
 begin
+  assert not exists(select 1 from public.public_impact(null,true) where month='2049-12');
+  assert (select jsonb_agg(to_jsonb(i) order by i.month,i.neighborhood) from public.public_impact(null,true) i)
+    = current_setting('comforce_test.template_totals')::jsonb;
   select * into strict totals from public.public_impact() where month='2049-12' and neighborhood is null;
   assert (totals.requests_helped,totals.needs_fulfilled,totals.referrals_made,totals.food_fulfilled)
          = (1,2,2,1);
