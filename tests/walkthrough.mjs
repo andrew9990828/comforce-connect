@@ -287,7 +287,7 @@ async function pairedDemo() {
   await deny('update_need', { p_token: resident, p_need: support.id, p_action: 'assign', p_value: 'Wrong worker' })
   await deny('update_need', { p_token: other, p_need: support.id, p_action: 'assign', p_value: 'Wrong worker' })
   assert.ok(!(await result('team_queue', { p_token: other })).some(c => c.reference === familyRef || c.reference === groceriesRef))
-  for (const name of ['requests', 'needs', 'referrals', 'history', 'workspaces']) {
+  for (const name of ['requests', 'needs', 'referrals', 'history', 'workspaces', 'need_operations']) {
     const url = new URL('../' + name + '?select=*&limit=1', rpcUrl)
     const response = await fetch(url, { headers: publicHeaders, redirect: 'error' })
     assert.ok([401, 403, 404].includes(response.status) || response.ok && (await response.json()).length === 0)

@@ -43,8 +43,8 @@ begin
     where c->>'reference' = ref and n->>'service' = 'food';
   select (n->>'id')::uuid into ride from jsonb_array_elements(q) c, jsonb_array_elements(c->'needs') n
     where c->>'reference' = ref and n->>'service' = 'transportation';
-  perform public.update_need(food,'refer','Demo Pantry',null,null,a->>'staff_token');
-  perform public.update_need(ride,'unmet','Private internal reason',null,null,a->>'staff_token');
+  perform public.update_need(food,'refer','Demo Pantry',null,null,a->>'staff_token',p_key=>gen_random_uuid());
+  perform public.update_need(ride,'unmet','Private internal reason',null,null,a->>'staff_token',p_key=>gen_random_uuid());
   s := public.request_status(ref,'0187',a->>'resident_token');
   assert (select n->>'stage' = 'in_progress' and n->>'partner' = 'Demo Pantry'
           from jsonb_array_elements(s->'needs') n where n->>'service' = 'food');
@@ -53,7 +53,7 @@ begin
   perform public.update_need(food,'fulfill',null,
     (select (f->>'id')::uuid from jsonb_array_elements(public.team_queue(a->>'staff_token')) c,
        jsonb_array_elements(c->'needs') n, jsonb_array_elements(n->'referrals') f
-     where c->>'reference' = ref and n->>'service' = 'food'),null,a->>'staff_token');
+     where c->>'reference' = ref and n->>'service' = 'food'),null,a->>'staff_token',p_key=>gen_random_uuid());
   s := public.request_status(ref,'0187',a->>'resident_token');
   assert (select n->>'stage' = 'delivered' and n->>'provider' = 'Demo Pantry'
           from jsonb_array_elements(s->'needs') n where n->>'service' = 'food');
