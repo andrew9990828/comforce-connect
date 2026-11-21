@@ -8,7 +8,7 @@ Community Task Force MKE helps Milwaukee residents get food, rides and family su
 | [Request help](http://127.0.0.1:5173/request) | Ask for multiple services and receive one reference. [Start with family support](http://127.0.0.1:5173/request?service=family_support). |
 | [Team workspace](http://127.0.0.1:5173/team) | Open a private fictional queue, pair a resident device, assign a worker and record a callback. |
 
-Three routes share one React/Vite build. Each new browser gets its own copy of the synthetic seed. A paired resident link grants submission and aggregate access to the laptop’s workspace. The separate [verified staff entrance](http://127.0.0.1:5173/team?mode=staff) reads the original staff records.
+Three routes share one React/Vite build. The public impact page reads one shared, read-only fictional template without creating a workspace. Opening the team demo or submitting a request creates a private copy that expires after 24 hours; at most 50 visitor workspaces can be active. A paired resident link grants submission and aggregate access to the laptop’s workspace. The separate [verified staff entrance](http://127.0.0.1:5173/team?mode=staff) reads the original staff records.
 
 ```mermaid
 flowchart LR
