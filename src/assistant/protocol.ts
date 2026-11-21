@@ -13,7 +13,9 @@ export type ClientAction =
   | { type: 'link'; label: string; href: string }
   | { type: 'open_case'; reference: string; needId: string; label: string }
   | { type: 'proposal'; needId: string; reference: string; action: Action; label: string; summary: string
-      value?: string; when?: string; source?: string; referral?: string }
+      value?: string; when?: string; source?: string; referral?: string
+      // Partner named by the selected referral (or ComForce for direct help), shown so staff can check who gets credit.
+      partner?: string }
 
 export interface AgentRequest { messages: ChatTurn[]; token?: string | null }
 export interface AgentReply { reply: string; actions: ClientAction[] }

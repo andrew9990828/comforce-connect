@@ -7,9 +7,10 @@
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/intake.test.mjs tests/crime-data.test.mjs",
+    "test": "node --experimental-strip-types --test tests/intake.test.mjs tests/crime-data.test.mjs tests/assistant.test.mjs",
     "test:db": "supabase test db",
     "test:assistant": "node --env-file-if-exists=.env.local tests/assistant.mjs",
+    "test:assistant-ui": "node tests/assistant-ui.mjs",
     "test:live":"node --env-file-if-exists=.env.local tests/walkthrough.mjs",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview"

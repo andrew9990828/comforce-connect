@@ -7,6 +7,7 @@ import CaseDetail from './CaseDetail'
 import TeamLogin from './TeamLogin'
 import ResidentPairing from './ResidentPairing'
 import TeamAssistant from '../assistant/TeamAssistant'
+import { clearTeamChats, scopeLabel } from '../assistant/conversation'
 import { actionLabel, dated, isOverdue, nextAction, outcome, partner, serviceLabels, statusLabels, type Action, type Need, type NeedStatus, type Service, type TeamRequest } from './queue'
 import './team.css'
 
@@ -200,9 +201,10 @@ function Workspace({ staff }: { staff: boolean }) {
       {selected.reference && !currentRequest && <div role="status" className="team-error">This case is unavailable in this workspace. <button onClick={closeCase}>Return to queue</button></div>}
     </>}
     <footer className="team-footer">{staff ? <><a href="/team">Open fictional demo</a>
-      <button onClick={async () => { const { error } = await supabase.auth.signOut({ scope:'local' }); if (error) setError('Sign-out failed. Try again.') }}>Sign out</button></>
+      <button onClick={async () => { clearTeamChats(); const { error } = await supabase.auth.signOut({ scope:'local' }); if (error) setError('Sign-out failed. Try again.') }}>Sign out</button></>
       : <a href="/team?mode=staff">Staff sign-in</a>}</footer>
     {requests && membership && <TeamAssistant token={membership.token} hidden={!!currentRequest} onSaved={refresh}
+      scope={staff ? `staff-${membership.userId}` : `demo-${scopeLabel(membership.token ?? '')}`}
       onOpenCase={(reference, needId) => {
         const request = requests.find(r => r.reference === reference)
         const need = request?.needs.find(n => n.id === needId)
@@ -219,7 +221,11 @@ export default function Team() {
   const [account, setAccount] = useState<string | null | undefined>(undefined)
   useEffect(() => {
     if (!staff) return
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => setAccount(session?.user.id ?? null))
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      // Covers sign-out from another tab or an expired session, as well as the Sign out button.
+      if (event === 'SIGNED_OUT') clearTeamChats()
+      setAccount(session?.user.id ?? null)
+    })
     return () => data.subscription.unsubscribe()
   }, [staff])
   if (staff && account === undefined) return <main className="team-page" role="status">Checking staff session…</main>

@@ -20,8 +20,11 @@ The site has two separate AI assistants, powered by an OpenAI model (default `gp
 
 - The browser posts the chat to `/agent/community` or `/agent/team`. The server code in [server/agents/](../server/agents/) calls the OpenAI Chat Completions API with strict function tools and keeps the API key off the browser.
 - The team endpoint loads `team_queue` with the caller’s credentials **before** calling the model. It rejects anyone without workspace access, and Postgres decides which cases are visible.
-- Residents' phone numbers and emails are never sent to the model. Resident-written text is labeled as data, not instructions. Even if a description tries to steer the assistant, the assistant can still only propose changes.
-- The conversation is kept in `sessionStorage` for the tab, so it survives page links and clears when the tab closes. Nothing is saved on the server.
+- The resident's contact field (phone or email) is never sent to the model. Contact details typed into free text can still reach a case: descriptions, family support notes, and history details and sources. Before the team assistant sends any of that text to the model, it replaces emails, phone numbers and street addresses with placeholders ([server/agents/privacy.ts](../server/agents/privacy.ts)). An agency's case number is never sent; the model only learns whether one exists. The replacement is pattern-based, so it's a safety net, not a guarantee. Staff should still keep contact details out of notes. `npm test` plants fictional contact details in every one of these fields and checks the exact payload sent to OpenAI.
+- Resident-written text is labeled as data, not instructions. Even if a description tries to steer the assistant, the assistant can still only propose changes.
+- The conversation is kept in `sessionStorage` for the tab, so it survives page links and clears when the tab closes. Nothing is saved on the server. Team conversations are stored separately for each staff account and demo workspace, and all of them are cleared on sign-out. That includes a sign-out from another tab, or an expired session.
+- Each proposal card gets its own operation key when it arrives, so saving it again, retrying it, or a reply arriving late can never write the update twice.
+- Times the team assistant proposes without an offset are read as Chicago time, never as the server's time zone. Fulfillment and decline cards name the partner taken from the selected referral.
 - If the model refuses or its content filter triggers, the reply points to 911 and 211.
 
 ## Setup
@@ -34,4 +37,4 @@ The site has two separate AI assistants, powered by an OpenAI model (default `gp
 
 - No server-side rate limiting.
 - Andrew's standalone launcher has to pass `OPENAI_API_KEY` in its environment for the assistants to work there.
-- `npm run test:assistant` checks the community assistant's boundaries against the real OpenAI API: off-topic requests, prompt injection, promises, legal, medical and eligibility advice, emergencies, and privacy. It sends 13 short requests per run. The team assistant has no automated tests yet. It was checked by hand against local Supabase. `npm run test:live` passes with the floating button on screen.
+- `npm run test:assistant` checks the community assistant's boundaries against the real OpenAI API: off-topic requests, prompt injection, promises, legal, medical and eligibility advice, emergencies, and privacy. It sends 13 short requests per run. `npm test` covers conversation state, Chicago times and the outgoing team payload offline. With the local app and Supabase running, `npm run test:assistant-ui` checks the panel in a browser with a stubbed assistant endpoint, so no OpenAI credits are used. It covers a card saved while a reply is pending (exactly one referral row), reloading mid-answer, New chat during a reply, switching workspaces, and staff sign-out. `npm run test:live` passes with the floating button on screen.

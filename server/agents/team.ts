@@ -5,6 +5,8 @@ import type { Action, Need, NeedStatus, TeamRequest } from '../../src/team/queue
 import { actionLabel, isOverdue, nextAction, outcome, partner, serviceLabels, statusLabels } from '../../src/team/queue'
 import type { ClientAction } from '../../src/assistant/protocol'
 import { text, tool, type AgentDefinition, type AgentEnv } from './run'
+import { redact } from './privacy'
+import { chicagoTime } from './time'
 
 export class AccessError extends Error {}
 
@@ -75,15 +77,16 @@ function caseDetail(request: TeamRequest, now: number) {
   return {
     reference: request.reference, neighborhood: request.neighborhood, opened: when(request.created_at),
     intake: request.source, preferred_contact_method: request.contact_method,
-    resident_description: request.description,
+    resident_description: redact(request.description),
     family_support: request.family_support && {
-      requested_support: request.family_support.support, safe_follow_up: request.family_support.safe_contact,
-      agency: request.family_support.agency || null, agency_reference: request.family_support.agency_reference || null,
+      requested_support: redact(request.family_support.support), safe_follow_up: redact(request.family_support.safe_contact),
+      // The agency's own case number isn't needed to plan follow-up, so only its presence is shared.
+      agency: request.family_support.agency || null, has_agency_reference: !!request.family_support.agency_reference,
     },
     needs: request.needs.map(need => ({
       ...needSummary(request, need, now),
       referrals: need.referrals.map(r => ({ referral_id: r.id, partner: r.partner, sent: when(r.sent_at), declined: when(r.declined_at) })),
-      history: need.history.slice(0, 15).map(h => ({ at: when(h.at), action: h.action, detail: h.detail, verified_by: h.source })),
+      history: need.history.slice(0, 15).map(h => ({ at: when(h.at), action: h.action, detail: redact(h.detail), verified_by: redact(h.source) })),
     })),
   }
 }
@@ -112,11 +115,11 @@ export function teamAgent(env: AgentEnv, caller: Caller, queue: TeamRequest[]): 
         reference: { type: 'string' },
       }),
       tool('show_case', 'Show staff a button that opens a case sheet.', { need_id: { type: 'string' } }),
-      tool('propose_update', `Draft an update to one open need for a staff member to review and save. It saves nothing. Actions: assign (value = worker name, max 80), direct, refer (value = partner, max 100), decline (referral_id of an active referral), follow_up (when = ISO due time), fulfill (optional referral_id of the delivering partner; empty means ComForce), unmet (value = reason, max 300), partner_contact (family support only; value = partner, max 100), check_in (needs a scheduled follow-up; value = outcome, max 500; source = who verified it, max 120; when = ISO time it happened). Use empty strings for fields an action doesn't take.`, {
+      tool('propose_update', `Draft an update to one open need for a staff member to review and save. It saves nothing. Actions: assign (value = worker name, max 80), direct, refer (value = partner, max 100), decline (referral_id of an active referral), follow_up (when = due time), fulfill (optional referral_id of the delivering partner; empty means ComForce), unmet (value = reason, max 300), partner_contact (family support only; value = partner, max 100), check_in (needs a scheduled follow-up; value = outcome, max 500; source = who verified it, max 120; when = time it happened). Use empty strings for fields an action doesn't take.`, {
         need_id: { type: 'string' },
         action: { type: 'string', enum: actionList },
         value: { type: 'string' },
-        when: { type: 'string', description: 'ISO 8601 time with an offset, or empty.' },
+        when: { type: 'string', description: 'Chicago local time like 2026-11-21T09:30 (an explicit offset is also accepted), or empty.' },
         source: { type: 'string' },
         referral_id: { type: 'string' },
         summary: { type: 'string', description: 'One sentence for the confirmation card explaining the change.' },
@@ -190,12 +193,8 @@ function propose(input: Record<string, unknown>, all: { request: TeamRequest; ne
     label: `${actionLabel(action, need)} · ${serviceLabels[need.service]} · ${request.reference}`,
   }
   const activeReferrals = need.referrals.filter(r => !r.declined_at)
-  const time = () => {
-    const raw = text(input, 'when', 40)
-    const parsed = Date.parse(raw)
-    if (!raw || !Number.isFinite(parsed)) throw new Error('Give an ISO 8601 time.')
-    return new Date(parsed).toISOString()
-  }
+  // Times without an offset are Chicago time, never the server's time zone.
+  const time = () => chicagoTime(text(input, 'when', 40))
   const required = (key: string, max: number) => {
     const value = text(input, key, max)
     if (!value) throw new Error(`${key} is required for ${action}.`)
@@ -221,6 +220,8 @@ function propose(input: Record<string, unknown>, all: { request: TeamRequest; ne
     if (referral && !activeReferrals.some(r => r.id === referral)) return { content: 'That referral is not active on this need.', isError: true }
     if (action === 'decline' && !referral) return { content: 'Choose the active referral that was declined.', isError: true }
     if (referral) proposal.referral = referral
+    // Name the partner from the referral itself, so the card shows who gets delivery credit (or who declined) before saving.
+    proposal.partner = referral ? activeReferrals.find(r => r.id === referral)!.partner : 'ComForce (direct help)'
   }
   if (actions.some(a => a.type === 'proposal' && a.needId === need.id && a.action === action)) {
     return { content: 'That proposal is already shown.', isError: true }

@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import { submissionKey } from '../intake/form'
 import { dated } from '../team/queue'
 import Assistant, { type StoredAction } from './Assistant'
+import { teamPrefix } from './conversation'
 
 type Proposal = Extract<StoredAction, { type: 'proposal' }>
 
@@ -11,8 +12,9 @@ function ProposalCard({ proposal, token, update, onSaved }: { proposal: Proposal
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   async function save() {
-    if (saving) return
-    // update_need requires an operation key for every action. It's stored with the card, so a retry after a lost response can't apply the update twice.
+    if (saving || proposal.status) return
+    // update_need requires an operation key for every action. Cards get theirs when they arrive (withKeys), so every save
+    // and retry of this card reuses it. The fallback covers cards stored before keys were added.
     const key = proposal.key || submissionKey()
     if (!proposal.key) update({ key })
     const params: Record<string, string | null> = { p_token: token, p_need: proposal.needId, p_action: proposal.action }
@@ -35,8 +37,9 @@ function ProposalCard({ proposal, token, update, onSaved }: { proposal: Proposal
   return <div className="assistant-card assistant-proposal">
     <p><strong>{proposal.label}</strong></p>
     <p>{proposal.summary}</p>
-    {(proposal.value || proposal.when || proposal.source) && <dl>
+    {(proposal.value || proposal.when || proposal.source || proposal.partner) && <dl>
       {proposal.value && <div><dt>Details</dt><dd>{proposal.value}</dd></div>}
+      {proposal.partner && <div><dt>{proposal.action === 'fulfill' ? 'Delivery credit' : 'Declined by'}</dt><dd>{proposal.partner}</dd></div>}
       {proposal.when && <div><dt>{proposal.action === 'check_in' ? 'Happened' : 'Due'}</dt><dd>{dated(proposal.when)}</dd></div>}
       {proposal.source && <div><dt>Verified by</dt><dd>{proposal.source}</dd></div>}
     </dl>}
@@ -50,10 +53,13 @@ function ProposalCard({ proposal, token, update, onSaved }: { proposal: Proposal
   </div>
 }
 
-interface Props { token: string | null; hidden: boolean; onSaved: () => void; onOpenCase: (reference: string, needId: string) => void }
+// `scope` names the signed-in staff account or demo workspace. Each scope keeps its own conversation,
+// so a different identity in the same tab never sees an earlier transcript or its proposal cards.
+interface Props { token: string | null; scope: string; hidden: boolean; onSaved: () => void; onOpenCase: (reference: string, needId: string) => void }
 
-export default function TeamAssistant({ token, hidden, onSaved, onOpenCase }: Props) {
-  return <Assistant name="team" title="Team assistant" launcher="Team assistant" token={token} hidden={hidden}
+export default function TeamAssistant({ token, scope, hidden, onSaved, onOpenCase }: Props) {
+  return <Assistant key={scope} name="team" title="Team assistant" launcher="Team assistant" token={token} hidden={hidden}
+    storageKey={`${teamPrefix}v2.${scope}`}
     greeting="I can search this workspace’s queue, explain what a case needs next and draft updates. Nothing is saved until you press Save update."
     notice="Drafted by an AI model. Check each update before saving."
     suggestions={['What should I work on first?', 'Which needs are overdue?', 'Summarize unassigned family support needs', 'Who has the most open needs?']}
