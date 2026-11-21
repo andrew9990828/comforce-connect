@@ -1,5 +1,5 @@
 -- Reproducible fictional local cases. Contributor: OpenAI Codex (GPT-6), scenarios and dates.
-insert into comforce.staff(email) values ('von@comforce.example');
+insert into comforce.staff(email,display_name,role) values ('von@comforce.example','Von','administrator');
 
 -- Reference numbers follow the fixture order on a fresh database.
 insert into comforce.requests(id,submission_key,created_at,neighborhood,description,contact_method,contact,source)
