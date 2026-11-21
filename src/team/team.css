@@ -20,9 +20,7 @@
   text-decoration:none; font-size:.9rem; font-weight:680; line-height:1.3; border:1px solid transparent; border-radius:5px;
 }
 .team-primary { background:var(--teal); color:var(--surface); }
-.team-primary:hover:where(html:not([data-hover="lens"]) *) { background:var(--ink); }
 .team-secondary, .team-filter-toggle { background:var(--staff-paper); color:var(--lake); border-color:var(--mid); }
-.team-secondary:hover:where(html:not([data-hover="lens"]) *), .team-filter-toggle:hover:where(html:not([data-hover="lens"]) *), .case-action-list button:hover:where(html:not([data-hover="lens"]) *) { background:var(--staff-tint); }
 .team-pair { position:relative; z-index:2; }
 .pair-device { display:block; width:12px; height:18px; border:1.6px solid currentColor; border-radius:3px; position:relative; }
 .pair-device:after { content:""; position:absolute; bottom:1px; left:3px; width:3px; height:2px; background:currentColor; }
@@ -48,7 +46,6 @@
 .team-need-link { text-align:left; background:none; padding:4px 0; min-height:44px; color:var(--lake); border:0; }
 .team-need-link strong, .team-need-link small { display:block; }
 .team-need-link strong { font-size:1.02rem; line-height:1.22; font-weight:730; }
-.team-need-link:hover:where(html:not([data-hover="lens"]) *) strong { text-decoration:underline; text-underline-offset:3px; }
 .team-need-link small { margin-top:4px; color:var(--muted); font-size:.8rem; letter-spacing:.01em; }
 .team-next-action {
   inline-size: min(100%, 12rem);
@@ -61,10 +58,6 @@
 }
 .team-row:focus-within { background: var(--ivory); }
 .team-next-action:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
-@media (hover: hover) {
-  .team-row:hover:where(html:not([data-hover="lens"]) *) { background: var(--ivory); }
-  .team-row .team-next-action:hover:where(html:not([data-hover="lens"]) *) { background: var(--lake); color: var(--surface); }
-}
 
 .team-flag { display:inline-flex; align-items:center; width:fit-content; color:var(--muted); background:var(--wash); padding:2px 6px; font-size:.78rem; font-weight:730; border-radius:3px; }
 .queue-counts { display:inline-flex; flex-wrap:wrap; align-items:center; gap:.5rem; }

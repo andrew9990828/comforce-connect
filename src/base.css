@@ -27,7 +27,6 @@ h1, h2, h3, p { margin-top: 0; }
 .site-nav { display: flex; gap: clamp(.8rem, 2.5vw, 2.1rem); align-self: stretch; margin-left: auto; }
 .site-nav a { display: flex; align-items: center; min-height: 44px; font-size: .9rem; font-weight: 620; text-decoration: none; color: var(--muted); padding-top: 3px; border-bottom: 3px solid transparent; }
 .site-nav a[aria-current] { border-color: var(--teal); color: var(--lake); }
-.site-nav a:hover:where(html:not([data-hover="lens"]) *) { color: var(--teal); }
 .staff-header { background: var(--lake); color: var(--surface); border: 0; }
 .staff-header .site-bar { gap: 1.15rem; }
 .staff-header .brand, .staff-header .site-nav a { color: var(--surface); }

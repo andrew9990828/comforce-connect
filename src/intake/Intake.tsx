@@ -116,7 +116,7 @@ export default function Intake() {
   </main>
 
   return <main className="intake-page">
-    <div className="intake-intro"><h1>{staffEntry ? 'Log a request' : 'What do you need help with?'}</h1>
+    <div className="intake-intro"><h1>{staffEntry ? 'Log a request' : family ? 'Request family support' : 'What do you need help with?'}</h1>
       <p className="intake-followup"><strong>{staffEntry
         ? (preview ? 'After you finish, you can preview the team queue.' : 'After you save, the case opens in your queue with all its needs together.')
         : 'After you submit, you’ll receive one reference number for everything you select.'}</strong>

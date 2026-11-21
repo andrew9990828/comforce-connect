@@ -21,10 +21,10 @@ export default function Impact() {
     <div className="story-sections">
       <section id="community-reach" className="story-reach impact-reach" aria-labelledby="reach-title">
         <div><h2 id="reach-title">People behind the work.</h2>
-          <p>Reported by <a href={reach[0].url}>Community Task Force MKE<svg className="source-link-icon" aria-hidden="true" focusable="false"
+          <p className="reach-attribution"><span>Reported by</span> <a href={reach[0].url}>Community Task Force <span className="source-link-end">MKE<svg className="source-link-icon" aria-hidden="true" focusable="false"
             viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M7 3H3v10h10V9M9 2h5v5M14 2 7 9"/>
-          </svg></a></p>
+          </svg></span></a></p>
         </div>
         <dl>{reach.map(fact => <div key={fact.unit}>
           <dt>{fact.unit}</dt><dd>{fact.value}</dd>

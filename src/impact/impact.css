@@ -31,7 +31,6 @@
   font-size: 1rem; font-weight: 690; text-decoration: none; border-radius: 5px;
 }
 .impact-cta { background: var(--teal); color: var(--surface); padding: .7rem 1.35rem; margin-top: 1.4rem; }
-.impact-cta:hover:where(html:not([data-hover="lens"]) *) { background: var(--ink); }
 .impact-reach { margin-top: 2rem; border-block: 1px solid var(--atlas-rule); padding: 1rem 0 1.2rem; }
 .impact-source { color: var(--muted); font-size: .82rem; }
 .impact-reach dl, .impact-history dl { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
@@ -141,7 +140,7 @@
 .atlas-table-body ul { padding: 0; margin: .65rem 0; list-style: none; }
 .atlas-table-body li + li { border-top: 1px solid var(--line); }
 .atlas-table-body button { display: flex; gap: .45rem; min-height: 44px; align-items: center; justify-content: space-between; padding: .35rem .5rem; width: 100%; background: none; color: var(--lake); border: none; }
-.atlas-table-body button[aria-pressed=true], .atlas-table-body button:hover:where(html:not([data-hover="lens"]) *) { background: var(--wash); }
+.atlas-table-body button[aria-pressed=true] { background: var(--wash); }
 .impact-history { border-block: 1px solid var(--atlas-rule); margin-top: 2.6rem; padding: 1.6rem 0; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: clamp(1.5rem,5vw,5rem); }
 .impact-history .impact-kicker { color: var(--teal); }
 .impact-history h2 { font-size: clamp(1.65rem, 2.55vw, 2.45rem); margin: .4rem 0 .5rem; }
@@ -230,7 +229,6 @@ html .impact-story {
   font-weight: 600;
   text-decoration: none;
 }
-.story-intro a:hover:where(html:not([data-hover="lens"]) *), .story-actions a:hover:where(html:not([data-hover="lens"]) *) { text-decoration: underline; }
 .story-cover .shoreline {
   min-height: clamp(23rem,42vw,35rem);
   position: relative;
@@ -316,12 +314,17 @@ html .impact-page.impact-story {
   background: var(--surface); border-radius: 14px; box-shadow: 0 4px 16px var(--shadow);
 }
 .chapter-index a { flex: none; white-space: nowrap; min-height: 44px; font-weight: 540; transition: background-color .24s,color .24s; }
-.chapter-index a[aria-current], .chapter-index a:hover:where(html:not([data-hover="lens"]) *), .service-directory a:hover:where(html:not([data-hover="lens"]) *) {
+.chapter-index a[aria-current] {
   background: var(--lake); color: var(--surface);
 }
 .chapter-index a[aria-current=location] { animation: chapter-arrival .42s cubic-bezier(.2,.7,.3,1); }
 @keyframes chapter-arrival { 0% { transform: scale(.96); } 55% { transform: scale(1.025); } 100% { transform: scale(1); } }
 .impact-story [id] { scroll-margin-top: 5rem; }
+
+@media (max-width: 767px) {
+  .chapter-index { scrollbar-width: none; }
+  .chapter-index::-webkit-scrollbar { display: none; }
+}
 .story-sections { background: var(--surface); border-radius: 18px; overflow: clip; }
 .impact-story .story-sections > section { margin: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; padding: clamp(2rem,5vw,5rem); }
 .story-map { padding: 0 clamp(.4rem,2vw,1.6rem); }
@@ -341,7 +344,7 @@ html .impact-page.impact-story {
 .atlas-table-body ul { display:grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,12rem),1fr)); gap: .45rem; }
 .atlas-table-body li + li { border: 0; }
 .atlas-table-body button { background: var(--wash); border-radius: 10px; padding-inline:.85rem; }
-.atlas-table-body button[aria-pressed=true], .atlas-table-body button:hover:where(html:not([data-hover="lens"]) *) { background:var(--lake); color:var(--surface); }
+.atlas-table-body button[aria-pressed=true] { background:var(--lake); color:var(--surface); }
 @media (prefers-reduced-motion: reduce) {
   .chapter-index a, .chapter-index a[aria-current=location] { animation: none; transition: none; }
 }
@@ -351,4 +354,10 @@ html .impact-page.impact-story {
 .source-link-icon { width: .85em; height: .85em; margin-inline-start: .25em; vertical-align: baseline; }
 @media (prefers-reduced-motion: no-preference) {
   html:has(.impact-story) { scroll-behavior: smooth; }
+}
+
+.source-link-end { white-space: nowrap; }
+@media (max-width: 767px) {
+  .reach-attribution > span { display: block; margin-bottom: .15rem; }
+  .reach-attribution a { text-wrap: balance; }
 }
