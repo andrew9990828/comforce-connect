@@ -96,7 +96,6 @@ declare
   actor_name text;
   actor_role text;
   target_name text;
-  request_id uuid;
   label text := nullif(btrim(p_value),'');
   verified_source text := nullif(btrim(p_source),'');
   request_hash bytea := comforce.need_operation_hash(p_action,p_value,p_referral,p_when,p_source,p_assignee);
@@ -115,7 +114,7 @@ begin
     raise exception using errcode='22023', message='Demo assignments use a worker name.';
   end if;
 
-  select n,r.id into current_need,request_id from comforce.needs n join comforce.requests r on r.id=n.request_id
+  select n.* into current_need from comforce.needs n join comforce.requests r on r.id=n.request_id
   where n.id=p_need and r.workspace_id is not distinct from workspace
     and (workspace is not null or actor_role='administrator' or n.assigned_staff_id=actor_uid)
   for update of n;
@@ -194,7 +193,7 @@ begin
   values(p_need,p_key,request_hash);
   if workspace is null then
     insert into comforce.audit_log(actor_uid,actor_email,actor_role,action,request_id,need_id,detail)
-    values(actor_uid,actor_email,actor_role,p_action,request_id,p_need,
+    values(actor_uid,actor_email,actor_role,p_action,current_need.request_id,p_need,
       jsonb_strip_nulls(jsonb_build_object('detail',detail,'assignee',case when p_action='assign' then p_assignee end)));
   end if;
 end $$;

@@ -1,3 +1,4 @@
+import { t, monthLabel as label } from '../languages/language'
 // Interactive demo atlas. Codex (GPT-6) implemented scoped aggregate reads, month comparisons, map selection and trend controls.
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
@@ -14,11 +15,6 @@ const metrics = [
   ['requests_helped', 'Requests helped'], ['needs_fulfilled', 'Needs fulfilled'],
   ['referrals_made', 'Referrals sent'], ['family_followups', 'Family check-ins completed'],
 ] as const
-const months = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
-const shortMonths = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' })
-function label(month: string, short = false) {
-  return (short ? shortMonths : months).format(new Date(month + '-01T12:00:00Z'))
-}
 function offset(month: string, steps: number) {
   const [year, number] = month.split('-').map(Number)
   return new Date(Date.UTC(year, number - 1 + steps, 1)).toISOString().slice(0, 7)
@@ -29,13 +25,16 @@ function chicagoMonth() {
 }
 function comparison(month: string, current: string, count: number | null, prior: number | null) {
   const previous = label(offset(month, -1))
-  if (month === current) return `${label(month)} is still in progress.`
-  if (count === null) return 'No recorded outcomes for this month.'
-  if (prior === null) return `No recorded outcomes for ${previous} to compare.`
-  if (count === prior) return `The same number of needs were fulfilled as in ${previous}.`
-  if (!prior) return `${count} ${count === 1 ? 'need was' : 'needs were'} fulfilled, after zero in ${previous}.`
+  if (month === current) return t('{month} is still in progress.', { month: label(month) })
+  if (count === null) return t('No recorded outcomes for this month.')
+  if (prior === null) return t('No recorded outcomes for {month} to compare.', { month: previous })
+  if (count === prior) return t('The same number of needs were fulfilled as in {month}.', { month: previous })
+  if (!prior) return t(count === 1 ? '{count} need fulfilled, after zero in {month}.' : '{count} needs fulfilled, after zero in {month}.', { count, month: previous })
   const delta = Math.abs(count - prior)
-  return `${delta} ${count > prior ? 'more' : 'fewer'} ${delta === 1 ? 'need' : 'needs'} fulfilled than in ${previous}.`
+  const key = count > prior
+    ? (delta === 1 ? '{count} more need fulfilled than in {month}.' : '{count} more needs fulfilled than in {month}.')
+    : (delta === 1 ? '{count} fewer need fulfilled than in {month}.' : '{count} fewer needs fulfilled than in {month}.')
+  return t(key, { count: delta, month: previous })
 }
 
 export default function Atlas() {
@@ -95,7 +94,7 @@ export default function Atlas() {
   const monthly = (rows ?? []).filter(row => row.month === period)
   const totals = monthly.find(row => row.neighborhood === (selected || null)) ?? zero
   const counts = rows && Object.fromEntries(monthly.filter(row => row.neighborhood).map(row => [row.neighborhood!, row.needs_fulfilled]))
-  const scope = selected === 'Unknown' ? 'Unknown neighborhood' : selected || 'All neighborhoods'
+  const scope = selected === 'Unknown' ? t('Unknown neighborhood') : selected || t('All neighborhoods')
   const series = Array.from({ length: 6 }, (_, i) => {
     const m = offset(period, i - 5)
     const value = cityMonths.includes(m)
@@ -109,54 +108,53 @@ export default function Atlas() {
   const areas = [...neighborhoods, 'Unknown']
   return <section className="atlas-board" aria-labelledby="atlas-title">
     <header className="atlas-heading"><div>
-      <p className="impact-kicker">Interactive demo activity</p>
-      <h2 id="atlas-title">Neighborhood atlas</h2>
+      <p className="impact-kicker">{t("Interactive demo activity")}</p>
+      <h2 id="atlas-title">{t("Neighborhood atlas")}</h2>
     </div>
       <div className="atlas-month">
-        <button type="button" aria-label="Previous month" disabled={index <= 0} onClick={() => setMonth(periods[index - 1])}>‹</button>
-        <select aria-label="Reporting month" value={period} onChange={event => setMonth(event.target.value)}>
+        <button type="button" aria-label={t("Previous month")} disabled={index <= 0} onClick={() => setMonth(periods[index - 1])}>‹</button>
+        <select aria-label={t("Reporting month")} value={period} onChange={event => setMonth(event.target.value)}>
           {periods.map(value => <option key={value} value={value}>{label(value)}</option>)}
         </select>
-        <button type="button" aria-label="Next month" disabled={index < 0 || index >= periods.length - 1} onClick={() => setMonth(periods[index + 1])}>›</button>
+        <button type="button" aria-label={t("Next month")} disabled={index < 0 || index >= periods.length - 1} onClick={() => setMonth(periods[index + 1])}>›</button>
       </div>
     </header>
-    <p className="atlas-instruction">Explore fictional outcomes across six Milwaukee neighborhoods. Tap a name to see local totals.</p>
+    <p className="atlas-instruction">{t("Explore fictional outcomes across six Milwaukee neighborhoods. Tap a name to see local totals.")}</p>
     {failed && <div role="alert" className="atlas-error">
-      {rows ? 'Refresh failed. The last available totals are shown.' : 'Demo outcomes are unavailable. Check your connection.'}
-      <button type="button" onClick={() => setRetry(value => value + 1)}>Retry</button>
+      {rows ? t('Refresh failed. The last available totals are shown.') : t('Demo outcomes are unavailable. Check your connection.')}
+      <button type="button" onClick={() => setRetry(value => value + 1)}>{t("Retry")}</button>
     </div>}
     <NeighborhoodMap selected={selected} periodLabel={label(period)} counts={counts} total={rows ? totals.needs_fulfilled : null} choose={setSelected} />
     <div className="atlas-outcomes">
       <div className="atlas-scope">
-        <h3>{selected === 'Unknown' ? 'Unknown neighborhood' : selected || 'Citywide'} outcomes</h3>
+        <h3>{selected ? t('{area} outcomes', { area: scope }) : t('Citywide outcomes')}</h3>
         <span>{label(period)}</span>
       </div>
       <dl className="atlas-metrics">{metrics.map(([key, title]) => <div key={key}>
-        <dt>{title}</dt><dd data-testid={key}>{rows ? totals[key].toLocaleString('en-US') : '—'}</dd>
+        <dt>{t(title)}</dt><dd data-testid={key}>{rows ? totals[key].toLocaleString('en-US') : '—'}</dd>
       </div>)}</dl>
-      <p className="atlas-food"><strong data-testid="food_fulfilled">{rows ? totals.food_fulfilled : '—'}</strong> food {totals.food_fulfilled === 1 ? 'need' : 'needs'} fulfilled in this selection.</p>
-      {rows && !hasActivity && <p className="atlas-empty" role="status">No recorded outcomes in this selection. Choose another month or neighborhood.</p>}
+      <p className="atlas-food"><strong data-testid="food_fulfilled">{rows ? totals.food_fulfilled : '—'}</strong> {t(totals.food_fulfilled === 1 ? 'food need fulfilled in this selection.' : 'food needs fulfilled in this selection.')}</p>
+      {rows && !hasActivity && <p className="atlas-empty" role="status">{t("No recorded outcomes in this selection. Choose another month or neighborhood.")}</p>}
     </div>
     <div className="atlas-trend">
-      <div><p className="impact-kicker">Six-month history</p><h3>Needs fulfilled</h3>
+      <div><p className="impact-kicker">{t("Six-month history")}</p><h3>{t("Needs fulfilled")}</h3>
         <p>{scope} · {label(series[0].m, true)}–{label(period)}</p>
-        <p className="atlas-comparison">{rows ? comparison(period, current, series[5].value, series[4].value) : 'Awaiting demo data.'}</p>
-        {rows && series.some(point => point.value === null) && <p className="atlas-gap">— No citywide outcomes recorded.</p>}
+        <p className="atlas-comparison">{rows ? comparison(period, current, series[5].value, series[4].value) : t('Awaiting demo data.')}</p>
+        {rows && series.some(point => point.value === null) && <p className="atlas-gap">{t("— No citywide outcomes recorded.")}</p>}
       </div>
-      <ol aria-label={`Monthly fulfilled needs for ${scope}`}>{series.map(({m, value}) => <li key={m} className={m === period ? 'current' : ''}>
+      <ol aria-label={t('Monthly fulfilled needs for {area}', { area: scope })}>{series.map(({m, value}) => <li key={m} className={m === period ? 'current' : ''}>
         <span className="trend-amount">{value ?? '—'}</span>
         <span className="trend-track"><i aria-hidden="true" style={{height: value ? `${value / max * 100}%` : '0'}} /></span>
         <span aria-label={label(m)}>{label(m, true)}</span>
       </li>)}</ol>
     </div>
-    <details className="atlas-table"><summary>Neighborhood totals and map sources</summary>
-      <div className="atlas-table-body"><p>Confirmed needs fulfilled in {label(period)}. Select a neighborhood to update the atlas.</p>
+    <details className="atlas-table"><summary>{t("Neighborhood totals and map sources")}</summary>
+      <div className="atlas-table-body"><p>{t("Confirmed needs fulfilled in")} {label(period)}{t(". Select a neighborhood to update the atlas.")}</p>
         <ul>{areas.map(name => <li key={name}><button type="button" aria-pressed={selected === name} onClick={() => setSelected(name)}>
-          {name === 'Unknown' ? 'Unknown neighborhood' : name}<b>{rows ? counts?.[name] ?? 0 : '—'}</b>
+          {name === 'Unknown' ? t('Unknown neighborhood') : name}<b>{rows ? counts?.[name] ?? 0 : '—'}</b>
         </button></li>)}</ul>
-        <p>Requests helped counts each request with a confirmed fulfillment once in the selected month. A referral counts when sent. A family check-in counts when recorded as completed. Gaps in the history indicate months with no recorded citywide outcomes.</p>
-        <p>Neighborhood boundaries from the <a href="https://milwaukeemaps.milwaukee.gov/arcgis/rest/services/AGO/neighborhoods/MapServer/0">City of Milwaukee</a>.
-          Water features from the 2025 U.S. Census TIGER/Line files for <a href="https://www2.census.gov/geo/tiger/TIGER2025/AREAWATER/tl_2025_55079_areawater.zip">Milwaukee</a> and <a href="https://www2.census.gov/geo/tiger/TIGER2025/AREAWATER/tl_2025_55089_areawater.zip">Ozaukee</a> counties.</p>
+        <p>{t("Requests helped counts each request with a confirmed fulfillment once in the selected month. A referral counts when sent. A family check-in counts when recorded as completed. Gaps in the history indicate months with no recorded citywide outcomes.")}</p>
+        <p>{t("Neighborhood boundaries from the")} <a href="https://milwaukeemaps.milwaukee.gov/arcgis/rest/services/AGO/neighborhoods/MapServer/0">{t("City of Milwaukee")}</a>{t(". Water features from the 2025 U.S. Census TIGER/Line files for")} <a href="https://www2.census.gov/geo/tiger/TIGER2025/AREAWATER/tl_2025_55079_areawater.zip">Milwaukee</a> {t("and")} <a href="https://www2.census.gov/geo/tiger/TIGER2025/AREAWATER/tl_2025_55089_areawater.zip">Ozaukee</a>{t(' counties.')}</p>
       </div>
     </details>
   </section>
