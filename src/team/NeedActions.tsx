@@ -29,7 +29,7 @@ export default function NeedActions({ need, token, initial, owners, partners, on
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const operationKey = useRef('')
+  const operation = useRef<{ key: string; payload: string } | null>(null)
   const saving = useRef(false)
   const primary = nextAction(need)
 
@@ -42,7 +42,7 @@ export default function NeedActions({ need, token, initial, owners, partners, on
     setSource('')
     setWhen(next === 'check_in' ? localTime(new Date()) : '')
     setAttempt(next === 'decline' ? activeRefs[0]?.id || '' : '')
-    operationKey.current = ''
+    operation.current = null
   }
   async function save(event: FormEvent) {
     event.preventDefault()
@@ -61,10 +61,11 @@ export default function NeedActions({ need, token, initial, owners, partners, on
     if (action === 'check_in') {
       if (!source.trim()) { setError('Record who or what verified the update.'); return }
       params.p_source = source.trim()
-      operationKey.current ||= submissionKey()
-      params.p_key = operationKey.current
     }
     if ((action === 'decline' || action === 'fulfill') && attempt) params.p_referral = attempt
+    const payload = JSON.stringify(params)
+    if (operation.current?.payload !== payload) operation.current = { key: submissionKey(), payload }
+    params.p_key = operation.current.key
     saving.current = true
     setPending(true)
     setError('')
