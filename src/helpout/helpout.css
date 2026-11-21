@@ -65,4 +65,8 @@
 .board-count input { width: 4.5rem; min-height: 40px; padding: .4rem .5rem; border: 1px solid #9fafa9; border-radius: 5px; }
 .board-add { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 0 1rem; padding: 1.2rem; background: #fffefa; border: 1px solid var(--line); border-radius: 8px; }
 .board-add .help-field > select { display: block; width: 100%; }
+.board-add fieldset { display: contents; }
+.board-receive { display: flex; align-items: center; gap: .4rem; margin-top: .45rem; font-size: .82rem; }
+.board-receive label { font-weight: 700; }
+.board-receive input { width: 3.6rem; min-height: 36px; padding: .3rem .45rem; border: 1px solid #9fafa9; border-radius: 5px; }
 .board-wide { grid-column: 1 / -1; }

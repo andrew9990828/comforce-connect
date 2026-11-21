@@ -3,12 +3,21 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { supabase } from '../supabase'
 import { isStaffMode, residentToken } from '../workspace'
 import { submissionKey } from '../intake/form'
-import { eventDate, kindLabels, progress, validateOffer, type BoardItem, type Kind, type OfferDraft } from './board'
+import { eventDate, kindLabels, offersLabel, progress, validateOffer, type BoardItem, type Kind, type OfferDraft } from './board'
+import { createFeed } from './feed'
+import { useFeed } from './useFeed'
 import './helpout.css'
 
 const blank: OfferDraft = { name: '', method: 'text', contact: '', quantity: '', note: '' }
 const buttonLabel: Record<Kind, string> = { supply: 'I can bring some', event: 'Sign me up', skill: 'Offer this skill' }
 const token = () => isStaffMode() ? Promise.resolve(null) : residentToken()
+type PublicBoard = { items: BoardItem[]; offers_this_month: number }
+// Same refresh rhythm as the staff board and atlas, so a change made on another device shows up without reloading.
+const publicFeed = () => createFeed<PublicBoard>(async (_session, signal) => {
+  const result = await supabase.rpc('community_board', { p_token: await token() }).abortSignal(signal)
+  if (result.error) throw result.error
+  return result.data as PublicBoard
+})
 
 function OfferForm({ item, onDone, onCancel }: { item: BoardItem; onDone: (name: string) => void; onCancel: () => void }) {
   const [draft, setDraft] = useState(blank)
@@ -90,27 +99,21 @@ function Card({ item, onOffered }: { item: BoardItem; onOffered: () => void }) {
 }
 
 export default function HelpOut() {
-  const [items, setItems] = useState<BoardItem[] | null>(null)
-  const [offers, setOffers] = useState(0)
+  const [feed] = useState(publicFeed)
+  const { data, error: failed } = useFeed(feed)
   const [filter, setFilter] = useState<Kind | 'all'>('all')
-  const [error, setError] = useState('')
-
-  async function load() {
-    try {
-      const result = await supabase.rpc('community_board', { p_token: await token() })
-      if (result.error) throw result.error
-      setItems(result.data.items)
-      setOffers(result.data.offers_this_month)
-    } catch { setError('The community board isn’t available right now. Try refreshing the page.') }
-  }
-  useEffect(() => { load() }, [])
+  useEffect(() => { feed.start(); feed.setSession('public'); return () => { feed.stop(); feed.setSession(null) } }, [feed])
+  const items = data?.items ?? null
+  const offers = data?.offers_this_month ?? 0
+  const error = failed && !data ? 'The community board isn’t available right now. Try refreshing the page.' : ''
+  const load = () => void feed.refresh()
 
   const kinds: Kind[] = ['supply', 'event', 'skill']
   return <main className="help-page">
     <div className="help-intro"><p className="help-kicker">Lend a hand <span> / </span> Fictional demo</p>
       <h1>Help your neighbors this week</h1>
       <p>Whether you have five minutes or a Saturday morning, there’s a way to help. Pick what fits and ComForce will follow up.</p>
-      {offers > 0 && <p className="help-stat"><strong>{offers}</strong> {offers === 1 ? 'neighbor has' : 'neighbors have'} offered help this month.</p>}</div>
+      {offers > 0 && <p className="help-stat"><strong>{offers}</strong> {offersLabel(offers)}</p>}</div>
     <div className="help-filters" role="group" aria-label="Filter ways to help">
       {(['all', ...kinds] as const).map(k => <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>
         {k === 'all' ? 'Everything' : kindLabels[k]}</button>)}
