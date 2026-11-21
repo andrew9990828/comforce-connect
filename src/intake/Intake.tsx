@@ -1,4 +1,5 @@
 // Resident and staff intake. Codex (GPT-6) implemented accessible multi-need submission and recovery.
+// asherjaenchen with Claude Opus 5.5 added the status-check link to the receipt, keeping community impact as a secondary link.
 import { useRef, useState, type FormEvent } from 'react'
 import { supabase } from '../supabase'
 import { isStaffMode, residentToken, staffContext } from '../workspace'
@@ -94,7 +95,9 @@ export default function Intake() {
         <h2>Help you requested</h2><ul className="receipt-needs">{receipt.needs.map(id => <li key={id}>{serviceLabels[id]}</li>)}</ul>
         <h2>What happens next</h2><p>The demo team can review each need and follow up by {{ phone: 'phone', text: 'text', email: 'email' }[receipt.method]} to arrange direct help or a partner referral.</p>
         {receipt.needs.includes('family_support') && <p>Family support includes checking in with you. This form does not file an official missing-person report or dispatch assistance.</p>}
-        <a className="intake-next" href="/">View community impact</a>
+        <h2>Check your progress</h2><p>Save your reference. You can see each need’s progress any time with it and {receipt.method === 'email' ? 'your email address' : 'the last 4 digits of your phone number'}.</p>
+        <p className="receipt-actions"><a className="intake-next" href={'/status?ref=' + encodeURIComponent(receipt.reference)}>Check request status</a>
+          <a className="receipt-secondary" href="/">View community impact</a></p>
       </div>
     </article>
   </main>
