@@ -1,8 +1,8 @@
 # Local dependencies, state and the supplied private working brief. Codex (GPT-6) authored these exclusions.
+# Claude (Opus 5.5) removed the .env.example exception when the template was deleted.
 /node_modules/
 /dist/
 /.env*
-!/.env.example
 /supabase/.temp/
 /supabase/.branches/
 /CODEX_MVP_PROMPT.md

@@ -1,10 +1,12 @@
 // Staff workspace. Codex (GPT-6) built isolated case queues, scoped polling and history-aware direct actions.
+// Claude (Opus 5.5) added the team assistant.
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabase'
 import { isStaffMode, staffContext } from '../workspace'
 import CaseDetail from './CaseDetail'
 import TeamLogin from './TeamLogin'
 import ResidentPairing from './ResidentPairing'
+import TeamAssistant from '../assistant/TeamAssistant'
 import { actionLabel, dated, isOverdue, nextAction, outcome, partner, serviceLabels, statusLabels, type Action, type Need, type NeedStatus, type Service, type TeamRequest } from './queue'
 import './team.css'
 
@@ -196,6 +198,12 @@ function Workspace({ staff }: { staff: boolean }) {
     <footer className="team-footer">{staff ? <><a href="/team">Open fictional demo</a>
       <button onClick={async () => { const { error } = await supabase.auth.signOut({ scope:'local' }); if (error) setError('Sign-out failed. Try again.') }}>Sign out</button></>
       : <a href="/team?mode=staff">Staff sign-in</a>}</footer>
+    {requests && membership && <TeamAssistant token={membership.token} hidden={!!currentRequest} onSaved={refresh}
+      onOpenCase={(reference, needId) => {
+        const request = requests.find(r => r.reference === reference)
+        const need = request?.needs.find(n => n.id === needId)
+        if (request && need) openCase(request, need, null)
+      }}/>}
     {!!currentRequest && !!currentNeed && membership && <CaseDetail request={currentRequest} need={currentNeed} initial={initialAction} token={membership.token}
       owners={owners} partners={partners} onSelect={need => openCase(currentRequest, need, null)} onSaved={refresh} onClose={closeCase}/>}
   </main>
