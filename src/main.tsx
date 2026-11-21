@@ -1,4 +1,5 @@
 // App entry and route navigation. Codex (GPT-6) built the public and team layouts and route loading.
+// asherjaenchen with Claude Opus 5.5 added the Lend a Hand routes (/help-out and /team/board).
 import { lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@fontsource-variable/dm-sans/wght.css'
@@ -7,17 +8,20 @@ import { configured } from './supabase'
 import { acceptResidentLink, isStaffMode } from './workspace'
 
 const path = location.pathname.replace(/\/+$/, '') || '/'
-if (path === '/request' || path === '/') acceptResidentLink()
+if (path === '/request' || path === '/' || path === '/help-out') acceptResidentLink()
 const source = new URLSearchParams(location.search).get('source')
 const staffIntake = path === '/request' && (source === 'call' || source === 'text')
-const staff = path === '/team' || staffIntake
+const staff = path === '/team' || path === '/team/board' || staffIntake
 const queue = '/team' + (isStaffMode() ? '?mode=staff' : '')
+const board = '/team/board' + (isStaffMode() ? '?mode=staff' : '')
 const log = '/request?source=call' + (isStaffMode() ? '&mode=staff' : '')
 const Page = path === '/' ? lazy(() => import('./impact/Impact'))
   : path === '/safety' ? lazy(() => import('./safety/Safety'))
   : path === '/request' ? lazy(() => import('./intake/Intake'))
-  : path === '/team' ? lazy(() => import('./team/Team')) : undefined
-document.title = 'ComForce Connect · ' + (staff ? 'Team workspace' : path === '/' ? 'Community impact' : path === '/safety' ? 'Neighborhood data' : path === '/request' ? 'Request help' : 'Page unavailable')
+  : path === '/help-out' ? lazy(() => import('./helpout/HelpOut'))
+  : path === '/team' ? lazy(() => import('./team/Team'))
+  : path === '/team/board' ? lazy(() => import('./helpout/TeamBoard')) : undefined
+document.title = 'ComForce Connect · ' + (staff ? 'Team workspace' : path === '/' ? 'Community impact' : path === '/safety' ? 'Neighborhood data' : path === '/request' ? 'Request help' : path === '/help-out' ? 'Lend a hand' : 'Page unavailable')
 
 function App() {
   return <>
@@ -32,6 +36,7 @@ function App() {
           <span className="staff-wordmark">Team workspace</span>
           <nav className="site-nav" aria-label="Team navigation">
             <a href={queue} aria-current={path === '/team' ? 'page' : undefined}>Queue</a>
+            <a href={board} aria-current={path === '/team/board' ? 'page' : undefined}>Community board</a>
             <a className="public-crosslink" href={isStaffMode() ? '/' : '/#my-workspace'}>View public site</a>
             <a className="staff-log" href={log} aria-current={staffIntake ? 'page' : undefined}>Log a request</a>
           </nav>
@@ -39,6 +44,7 @@ function App() {
           <a href="/" aria-current={path === '/' ? 'page' : undefined}>Community impact</a>
           <a href="/safety" aria-current={path === '/safety' ? 'page' : undefined}>Neighborhood data</a>
           <a href="/request" aria-current={path === '/request' ? 'page' : undefined}>Request help</a>
+          <a href="/help-out" aria-current={path === '/help-out' ? 'page' : undefined}>Lend a hand</a>
         </nav>}
       </div>
     </header>
