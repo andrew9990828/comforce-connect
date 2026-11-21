@@ -12,15 +12,15 @@ function ProposalCard({ proposal, token, update, onSaved }: { proposal: Proposal
   const [error, setError] = useState('')
   async function save() {
     if (saving) return
-    // The check-in key is stored with the card so a retry after a lost response can't record the follow-up twice.
-    const key = proposal.action === 'check_in' ? proposal.key || submissionKey() : undefined
-    if (key && !proposal.key) update({ key })
+    // update_need requires an operation key for every action. It's stored with the card, so a retry after a lost response can't apply the update twice.
+    const key = proposal.key || submissionKey()
+    if (!proposal.key) update({ key })
     const params: Record<string, string | null> = { p_token: token, p_need: proposal.needId, p_action: proposal.action }
     if (proposal.value !== undefined) params.p_value = proposal.value
     if (proposal.when) params.p_when = proposal.when
     if (proposal.source) params.p_source = proposal.source
     if (proposal.referral) params.p_referral = proposal.referral
-    if (key) params.p_key = key
+    params.p_key = key
     setSaving(true)
     setError('')
     try {

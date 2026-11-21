@@ -82,7 +82,8 @@ declare
   a jsonb := current_setting('comforce_test.a')::jsonb; b jsonb := current_setting('comforce_test.b')::jsonb;
   family_id uuid := current_setting('comforce_test.family')::uuid;
   ride_id uuid := current_setting('comforce_test.ride')::uuid;
-  k uuid := gen_random_uuid(); happened timestamptz := now();
+  assign_key uuid := gen_random_uuid(); contact_key uuid := gen_random_uuid();
+  follow_key uuid := gen_random_uuid(); check_key uuid := gen_random_uuid(); happened timestamptz := now();
   period text := to_char(happened at time zone 'America/Chicago','YYYY-MM');
   initial_callbacks bigint; initial_fulfilled bigint; outsider_callbacks bigint; overview record; need jsonb;
 begin
@@ -90,13 +91,20 @@ begin
     from public.public_impact(a->>'resident_token') where neighborhood is null and month=period;
   select coalesce(sum(family_followups),0) into outsider_callbacks from public.public_impact(b->>'resident_token')
     where neighborhood is null and month=period;
-  perform public.update_need(family_id,'assign','Von',p_token=>a->>'staff_token');
-  perform public.update_need(family_id,'partner_contact','Sample partner',p_token=>a->>'staff_token');
-  perform public.update_need(family_id,'follow_up',p_when=>happened,p_token=>a->>'staff_token');
+  perform public.update_need(family_id,'assign','Von',p_token=>a->>'staff_token',p_key=>assign_key);
+  perform public.update_need(family_id,'assign','Von',p_token=>a->>'staff_token',p_key=>assign_key);
+  perform public.update_need(family_id,'partner_contact','Sample partner',p_token=>a->>'staff_token',p_key=>contact_key);
+  perform public.update_need(family_id,'partner_contact','Sample partner',p_token=>a->>'staff_token',p_key=>contact_key);
+  perform public.update_need(family_id,'follow_up',p_when=>happened,p_token=>a->>'staff_token',p_key=>follow_key);
+  perform public.update_need(family_id,'follow_up',p_when=>happened,p_token=>a->>'staff_token',p_key=>follow_key);
   perform public.update_need(family_id,'check_in','Reviewed support options',p_when=>happened,p_token=>a->>'staff_token',
-    p_source=>'Family phone conversation',p_key=>k);
+    p_source=>'Family phone conversation',p_key=>check_key);
   perform public.update_need(family_id,'check_in','Reviewed support options',p_when=>happened,p_token=>a->>'staff_token',
-    p_source=>'Family phone conversation',p_key=>k);
+    p_source=>'Family phone conversation',p_key=>check_key);
+  begin
+    perform public.update_need(family_id,'assign','Different worker',p_token=>a->>'staff_token',p_key=>assign_key);
+    raise exception 'Mismatched update retry was accepted';
+  exception when invalid_parameter_value then null; end;
   select * into strict overview from public.public_impact(a->>'resident_token') where month=period and neighborhood is null;
   assert overview.family_followups=initial_callbacks+1 and overview.needs_fulfilled=initial_fulfilled;
   assert (select count(*)=7 from jsonb_object_keys(to_jsonb(overview))) and to_jsonb(overview) ?&
@@ -112,6 +120,8 @@ begin
       assert (select count(*)=1 from jsonb_array_elements(need->'history') h
         where h->>'action'='check_in' and h->>'source'='Family phone conversation'
         and h->>'detail'='Reviewed support options' and (h->>'at')::timestamptz=happened);
+      assert (select count(*)=4 from jsonb_array_elements(need->'history') h
+        where h->>'action' = any(array['assign','partner_contact','follow_up','check_in']));
     else
       assert (need->>'id')::uuid=ride_id and need->>'owner' is null;
     end if;

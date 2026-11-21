@@ -30,6 +30,7 @@ function Workspace({ staff }: { staff: boolean }) {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [selected, setSelected] = useState(detailLocation)
   const [initialAction, setInitialAction] = useState<Action | null>(null)
+  const membershipRef = useRef<Membership | null>(null)
   const queueScroll = useRef(0)
   const trigger = useRef<HTMLElement | null>(null)
 
@@ -80,9 +81,12 @@ function Workspace({ staff }: { staff: boolean }) {
       pending = controller
       const timeout = setTimeout(() => controller.abort(), 8000)
       try {
-        const context = await staffContext()
+        const context = membershipRef.current ?? await staffContext()
         if (!live) return
-        setMembership(context)
+        if (!membershipRef.current) {
+          membershipRef.current = context
+          setMembership(context)
+        }
         const result = await supabase.rpc('team_queue', { p_token: context.token }).abortSignal(controller.signal)
         if (!live) return
         if (result.error) {
@@ -141,7 +145,7 @@ function Workspace({ staff }: { staff: boolean }) {
   ]
   return <main className="team-page">
     <div className="team-intro"><div><h1>Needs queue</h1>
-      <p>{staff ? 'Staff casework' : 'Private fictional workspace'} · Milwaukee</p></div>
+      <p>{staff ? membership ? `${membership.role === 'administrator' ? 'Administrator' : 'Caseworker'} workspace` : 'Staff workspace' : 'Private fictional workspace'} · Milwaukee</p></div>
       {!!membership?.residentToken && <ResidentPairing token={membership.residentToken}/>}
     </div>
     {error && <div role="alert" className="team-error">{error} <button onClick={refresh}>Retry</button></div>}
@@ -205,7 +209,8 @@ function Workspace({ staff }: { staff: boolean }) {
         if (request && need) openCase(request, need, null)
       }}/>}
     {!!currentRequest && !!currentNeed && membership && <CaseDetail request={currentRequest} need={currentNeed} initial={initialAction} token={membership.token}
-      owners={owners} partners={partners} onSelect={need => openCase(currentRequest, need, null)} onSaved={refresh} onClose={closeCase}/>}
+      owners={owners} partners={partners} canAssign={membership.canAssign} staffMembers={membership.staff} demo={!staff}
+      onSelect={need => openCase(currentRequest, need, null)} onSaved={refresh} onClose={closeCase}/>}
   </main>
 }
 

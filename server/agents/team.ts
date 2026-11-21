@@ -167,6 +167,9 @@ export function teamAgent(env: AgentEnv, caller: Caller, queue: TeamRequest[]): 
           label: `Open ${found.request.reference} · ${serviceLabels[found.need.service]}` })
         return { content: 'The button is shown below your reply.' }
       }
+      // Verified staff assign by staff account (p_assignee) in the case sheet, which only administrators can do. Demo workspaces assign by name.
+      if (name === 'propose_update' && input.action === 'assign' && !caller.token)
+        return { content: 'In verified staff mode, administrators assign cases from the case sheet. Offer show_case for this need instead.', isError: true }
       if (name === 'propose_update') return propose(input, rows(), at, actions)
       return { content: 'Unknown tool.', isError: true }
     },
