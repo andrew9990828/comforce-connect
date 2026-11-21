@@ -94,7 +94,7 @@ async function details(page, text, family = false) {
   await page.getByRole('textbox', { name: family ? 'What support would help your family?' : 'Description', exact: true }).fill(text)
   if (family) await page.getByLabel('How can staff follow up safely?').fill('Text before calling about this fictional case.')
   await page.getByLabel('Neighborhood', { exact: true }).selectOption(area)
-  await page.getByLabel('Email', { exact: true }).check()
+  await page.getByRole('combobox', { name: /First-choice contact method/ }).selectOption('email')
   assert.equal(await page.getByLabel('Phone number', { exact: true }).count(), 0)
   await page.getByLabel('Email address', { exact: true }).fill('demo@example.invalid')
 }
@@ -162,6 +162,8 @@ async function pairedDemo() {
   await desk.getByRole('button', { name: 'Pair a resident device' }).click()
   await inspect(desk, 'queue')
   await web.goto(app + '/')
+  assert.equal(await web.getByRole('combobox', { name: 'Reporting month' }).count(), 0)
+  await web.getByRole('link', { name: 'Explore community impact' }).click()
   const aggregate = reply(web, 'public_impact')
   await web.reload()
   const data = await aggregate

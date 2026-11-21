@@ -1,16 +1,22 @@
 // Verified staff entry. Codex (GPT-6) implemented the optional OTP flow and retained the pending step on reload.
 import { useState, type FormEvent } from 'react'
+import { preview, route } from '../preview/location'
 import { supabase } from '../supabase'
 
 const pendingKey = 'comforce.pending-staff-email'
 export default function TeamLogin() {
-  const [sentTo, setSentTo] = useState(() => sessionStorage.getItem(pendingKey) || '')
+  const [sentTo, setSentTo] = useState(() => !preview && sessionStorage.getItem(pendingKey) || '')
   const [email, setEmail] = useState(sentTo)
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   async function signIn(event: FormEvent) {
     event.preventDefault()
+    if (preview) {
+      if (sentTo) location.assign(route('/team'))
+      else setSentTo(email)
+      return
+    }
     if (busy) return
     setError('')
     setBusy(true)
@@ -30,16 +36,16 @@ export default function TeamLogin() {
     } finally { setBusy(false) }
   }
   function restart() {
-    sessionStorage.removeItem(pendingKey)
+    if (!preview) sessionStorage.removeItem(pendingKey)
     setSentTo('')
     setCode('')
     setError('')
   }
   return <main className="team-page"><section className="team-login">
     <h1>Staff sign-in</h1>
-    <p>Use your approved staff email to access the staff queue.</p>
+    <p>{preview ? 'Preview sign-in with a fictional email and any six-digit code.' : 'Use your approved staff email to access the staff queue.'}</p>
     <form onSubmit={signIn}>
-      {sentTo ? <><p role="status">Enter the six-digit code sent to <strong>{sentTo}</strong>.</p>
+      {sentTo ? <><p role="status">{preview ? 'Enter any six-digit preview code for ' : 'Enter the six-digit code sent to '}<strong>{sentTo}</strong>.</p>
         <label>Six-digit sign-in code<input value={code} onChange={e => setCode(e.target.value)}
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required autoFocus /></label></>
         : <label>Staff email<input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required /></label>}
@@ -49,6 +55,6 @@ export default function TeamLogin() {
         {sentTo && <button type="button" className="team-secondary" disabled={busy} onClick={restart}>Request another code</button>}
       </div>
     </form>
-    <a href="/team">Open fictional team demo</a>
+    <a href={route('/team')}>Open fictional team demo</a>
   </section></main>
 }

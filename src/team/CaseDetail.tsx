@@ -67,6 +67,7 @@ export default function CaseDetail({ request, need, initial, token, owners, part
       </section>
       <h3>Resident contact</h3>
       <p className="case-contact"><strong>{{phone:'Call',email:'Email',text:'Text'}[request.contact_method]}</strong> {request.contact}</p>
+      {request.second_method && <p className="case-contact"><strong>Second choice · {{phone:'Call',email:'Email',text:'Text'}[request.second_method]}</strong> {request.second_contact}</p>}
       <p className="case-description">{request.description}</p>
       {need.referrals.length > 0 && <details className="case-details"><summary>Referral attempts <b>{need.referrals.length}</b></summary>
         <ol>{need.referrals.map(ref => <li key={ref.id}><strong>{ref.partner}</strong><span>Sent {dated(ref.sent_at)}{ref.declined_at ? ` · Declined ${dated(ref.declined_at)}` : ''}</span></li>)}</ol>
