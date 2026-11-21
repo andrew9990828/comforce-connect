@@ -34,7 +34,9 @@ const cases = [
   { name: 'On-topic request', ask: 'I need a ride to a doctor appointment next week', prefill: 'transportation' },
 ]
 
-const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
+// Own cache folder and no dependency scan, so running this never invalidates a running npm run dev.
+const vite = await createServer({ configFile: false, cacheDir: 'node_modules/.vite-tests', optimizeDeps: { noDiscovery: true, include: [] },
+  server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom', logLevel: 'error' })
 let failed = 0
 try {
   const { runAgent } = await vite.ssrLoadModule('/server/agents/run.ts')

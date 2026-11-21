@@ -68,8 +68,8 @@ function needSummary(request: TeamRequest, need: Need, now: number) {
   return {
     reference: request.reference, need_id: need.id, service: serviceLabels[need.service], status: statusLabels[need.status],
     neighborhood: request.neighborhood, owner: need.owner, follow_up_due: when(need.follow_up), overdue: isOverdue(need, now),
-    next_action: action ? `${action}: ${actionLabel(action, need)}` : null, outcome: action ? null : outcome(need),
-    partner: partner(need) ?? null, opened: when(request.created_at),
+    next_action: action ? `${action}: ${actionLabel(action, need)}` : null, outcome: action ? null : redact(outcome(need)),
+    partner: redact(partner(need)), opened: when(request.created_at),
   }
 }
 
@@ -81,11 +81,11 @@ function caseDetail(request: TeamRequest, now: number) {
     family_support: request.family_support && {
       requested_support: redact(request.family_support.support), safe_follow_up: redact(request.family_support.safe_contact),
       // The agency's own case number isn't needed to plan follow-up, so only its presence is shared.
-      agency: request.family_support.agency || null, has_agency_reference: !!request.family_support.agency_reference,
+      agency: redact(request.family_support.agency), has_agency_reference: !!request.family_support.agency_reference,
     },
     needs: request.needs.map(need => ({
       ...needSummary(request, need, now),
-      referrals: need.referrals.map(r => ({ referral_id: r.id, partner: r.partner, sent: when(r.sent_at), declined: when(r.declined_at) })),
+      referrals: need.referrals.map(r => ({ referral_id: r.id, partner: redact(r.partner), sent: when(r.sent_at), declined: when(r.declined_at) })),
       history: need.history.slice(0, 15).map(h => ({ at: when(h.at), action: h.action, detail: redact(h.detail), verified_by: redact(h.source) })),
     })),
   }
@@ -97,7 +97,7 @@ export function teamAgent(env: AgentEnv, caller: Caller, queue: TeamRequest[]): 
   const rows = () => requests.flatMap(request => request.needs.map(need => ({ request, need })))
   const now = new Date()
 
-  return {
+  const agent: AgentDefinition = {
     instructions,
     context: `Current time: ${chicago.format(now)} Chicago (${now.toISOString()}). This workspace has ${requests.length} requests.`,
     tools: [
@@ -177,6 +177,14 @@ export function teamAgent(env: AgentEnv, caller: Caller, queue: TeamRequest[]): 
       return { content: 'Unknown tool.', isError: true }
     },
   }
+  // Safety net: every tool result is redacted once more as a whole before it reaches the model, so a field added
+  // later without redact() still can't leak contact details. Ids are UUIDs, which the patterns don't match.
+  const runTool = agent.runTool
+  agent.runTool = async (name, input, actions) => {
+    const result = await runTool(name, input, actions)
+    return { ...result, content: redact(result.content) }
+  }
+  return agent
 }
 
 // Mirrors the checks in update_need so staff only see proposals the database will accept.
