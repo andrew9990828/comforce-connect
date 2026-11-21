@@ -1,5 +1,5 @@
 // Resident request status page. Contributor: asherjaenchen. AI assistance: Claude Opus 5.5 built the lookup form and tracker.
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { supabase } from '../supabase'
 import { isStaffMode, residentToken } from '../workspace'
 import { serviceLabels } from '../services'
@@ -30,6 +30,16 @@ export default function Status() {
   const [failed, setFailed] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<RequestStatus | null>(null)
+  // Each lookup and each input edit takes a new number, so a slower earlier response can't overwrite newer state.
+  const latest = useRef(0)
+
+  // A shown result belongs to the inputs that produced it; editing either one retires it and any lookup in flight.
+  function edited() {
+    latest.current++
+    setResult(null)
+    setFailed('')
+    setLoading(false)
+  }
 
   async function lookup(event?: FormEvent) {
     event?.preventDefault()
@@ -37,17 +47,21 @@ export default function Status() {
     setErrors(problems)
     setFailed('')
     if (problems.reference || problems.check) return
+    const id = ++latest.current
+    const current = () => id === latest.current
     setLoading(true)
     try {
       const token = isStaffMode() ? null : await residentToken()
+      if (!current()) return
       const res = await supabase.rpc('request_status', { p_reference: normalizeReference(reference), p_check: check.trim(), p_token: token })
+      if (!current()) return
       if (res.error?.code === 'P0002') { setResult(null); setFailed('We couldn’t find a request with that reference and contact. Check both and try again.'); return }
       if (res.error || !res.data) throw new Error('Lookup unavailable')
       setResult(res.data as RequestStatus)
     } catch {
-      setFailed('We couldn’t check your request right now. Check your connection and try again.')
+      if (current()) setFailed('We couldn’t check your request right now. Check your connection and try again.')
     } finally {
-      setLoading(false)
+      if (current()) setLoading(false)
     }
   }
 
@@ -63,12 +77,12 @@ export default function Status() {
           <div className="intake-block"><label htmlFor="reference">Reference number</label>
             <input id="reference" value={reference} placeholder="CF-1042" autoComplete="off" maxLength={14}
               aria-invalid={!!errors.reference} aria-describedby={errors.reference ? 'reference-error' : undefined}
-              onChange={e => { setReference(e.target.value); setErrors(c => ({ ...c, reference: undefined })) }}/>
+              onChange={e => { setReference(e.target.value); setErrors(c => ({ ...c, reference: undefined })); edited() }}/>
             {errors.reference && <p id="reference-error" className="intake-error">{errors.reference}</p>}</div>
           <div className="intake-block"><label htmlFor="check">Last 4 digits of your phone, or your email</label>
             <input id="check" value={check} placeholder="0100" autoComplete="off" maxLength={254}
               aria-invalid={!!errors.check} aria-describedby={errors.check ? 'check-error' : undefined}
-              onChange={e => { setCheck(e.target.value); setErrors(c => ({ ...c, check: undefined })) }}/>
+              onChange={e => { setCheck(e.target.value); setErrors(c => ({ ...c, check: undefined })); edited() }}/>
             {errors.check && <p id="check-error" className="intake-error">{errors.check}</p>}</div>
           {failed && <p className="intake-error submit-error" role="alert">{failed}</p>}
           <button type="submit" className="intake-submit" disabled={loading}>{loading ? 'Checking…' : result ? 'Refresh status' : 'Check status'}</button>
