@@ -38,11 +38,9 @@
 .footer-help { margin:0; font-size:1rem; color:var(--ink); }
 .footer-help a { font-weight:700; }
 .footer-team { color:var(--muted); font-size:.85rem; }
-.site-nav a.nav-cta { background:var(--teal); color:#fff; font-weight:700; }
-.site-nav a.nav-cta[aria-current] { background:var(--lake); }
 .site-nav { align-items:center; gap:.35rem; }
 .site-nav a, .staff-header .site-nav .staff-log { min-height:40px; border:0; border-radius:12px; padding:.6rem .95rem; }
-.site-nav a[aria-current] { background:var(--wash); }
+.site-header:not(.staff-header) .site-nav a[aria-current] { background:var(--teal); color:#fff; font-weight:700; }
 .staff-header {background:var(--lake);}
 .staff-header .site-nav a[aria-current],.staff-header .site-nav .staff-log { background:var(--wash); color:var(--lake); }
 html .impact-page {max-width:960px;--atlas-paper:var(--surface);--atlas-type:var(--lake);--atlas-rule:var(--line);--atlas-serif:inherit;padding-top:clamp(1rem,2.4vw,2.2rem);}

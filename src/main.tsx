@@ -75,7 +75,7 @@ function App() {
             <a className="staff-log" href={log} aria-current={staffIntake ? 'page' : undefined}>{t("Log a request")}</a>
           </nav>
         : <nav className="site-nav" aria-label={t("Public navigation")}>
-          <a className="nav-cta" href={route('/request')} aria-current={path === '/request' ? 'page' : undefined}>{t("Get help")}</a>
+          <a href={route('/request')} aria-current={path === '/request' ? 'page' : undefined}>{t("Get help")}</a>
           <a href={route('/status')} aria-current={path === '/status' ? 'page' : undefined}>{t("Check my request")}</a>
           <a href={route('/impact')} aria-current={path === '/impact' ? 'page' : undefined}>{t("How we help")}</a>
           <a href={route('/safety')} aria-current={path === '/safety' ? 'page' : undefined}>{t("Your neighborhood")}</a>
