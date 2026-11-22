@@ -195,9 +195,9 @@
 html .impact-page.impact-simple {
   max-width: 1180px; margin: 0 auto;
   padding: clamp(1rem,3vw,2.25rem) clamp(1rem,4vw,2.5rem) clamp(2rem,5vw,4rem);
-  display: grid; gap: clamp(1rem,2.5vw,1.75rem);
+  display: grid; grid-template-columns: minmax(0,1fr); gap: clamp(1rem,2.5vw,1.75rem);
 }
-.impact-simple .atlas-board { border-radius: 16px; }
+.impact-simple .atlas-board { border-radius: 16px; grid-area: auto; }
 .impact-cards { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: clamp(.75rem,2vw,1.25rem); }
 .impact-card {
   display: flex; flex-direction: column; gap: .9rem;
@@ -228,9 +228,9 @@ html .impact-page.impact-simple {
 
 /* Wide screens: map on the left, outcomes and the six-month trend beside it. */
 @media (min-width: 1000px) {
-  .impact-simple .atlas-board { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(0,1fr); }
-  .impact-simple .atlas-board > :not(.atlas-map, .atlas-outcomes, .atlas-trend) { grid-column: 1 / -1; }
-  .impact-simple .atlas-map { grid-column: 1; grid-row: span 2; border-right: 1px solid var(--atlas-rule); }
+  .impact-simple .atlas-board:not(.crime-player) { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(0,1fr); }
+  .impact-simple .atlas-board:not(.crime-player) > :not(.atlas-map, .atlas-outcomes, .atlas-trend) { grid-column: 1 / -1; }
+  .impact-simple .atlas-board:not(.crime-player) .atlas-map { grid-column: 1; grid-row: span 2; border-right: 1px solid var(--atlas-rule); }
   .impact-simple .atlas-outcomes { grid-column: 2; align-self: start; }
   .impact-simple .atlas-trend { grid-column: 2; grid-template-columns: 1fr; align-self: start; }
   .impact-simple .atlas-metrics { grid-template-columns: 1fr 1fr; }
@@ -238,3 +238,5 @@ html .impact-page.impact-simple {
 @media (max-width: 900px) {
   .impact-cards { grid-template-columns: 1fr; }
 }
+
+.impact-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

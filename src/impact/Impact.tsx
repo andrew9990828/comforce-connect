@@ -8,6 +8,7 @@ import './impact.css'
 
 export default function Impact() {
   return <main className="impact-page impact-simple">
+    <h1 className="impact-sr-only">{t("How we help")}</h1>
     <div id="neighborhoods" className="impact-map"><Atlas/></div>
 
     <div className="impact-cards">

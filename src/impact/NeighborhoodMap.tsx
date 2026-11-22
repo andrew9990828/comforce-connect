@@ -31,10 +31,14 @@ interface MapProps {
   legendLabel: string
   includeUnknown?: boolean
   allLabel?: string
+  /** Custom fill per neighborhood, used by the incident heatmap's own scale. */
+  fill?: (name: string) => string
+  /** Text appended to a map label, such as an incident count. */
+  labelValue?: (name: string) => string | number
   choose: (name: string) => void
 }
 
-export default function NeighborhoodMap({ selected, periodLabel, counts, readout, legendLabel, includeUnknown = true, allLabel = t("Citywide"), overlay, markers, markerPreview, legend, choose }: MapProps) {
+export default function NeighborhoodMap({ selected, periodLabel, counts, readout, legendLabel, includeUnknown = true, allLabel = t("Citywide"), overlay, markers, markerPreview, legend, fill, labelValue, choose }: MapProps) {
   const frame = useRef<HTMLDivElement>(null)
   const [span, setSpan] = useState(620)
   useEffect(() => {
@@ -70,7 +74,7 @@ export default function NeighborhoodMap({ selected, periodLabel, counts, readout
         {areas.map(name => {
           const count = counts?.[name] ?? 0
           const level = count >= 4 ? 3 : count >= 2 ? 2 : count
-          return <path key={name} d={geography.areas[name].d} fill={counts ? levels[level].color : 'var(--wash)'}
+          return <path key={name} d={geography.areas[name].d} fill={fill ? fill(name) : counts ? levels[level].color : 'var(--wash)'}
             className={'atlas-area' + (selected === name ? ' selected' : '')} onClick={() => choose(name)} />
         })}
         <path d={water.rivers} className="atlas-rivers" />
@@ -81,12 +85,13 @@ export default function NeighborhoodMap({ selected, periodLabel, counts, readout
           const {x, y} = geography.areas[name]
           const [tx, ty, anchor] = labels[name]
           const left = anchor === 'end'
-          const width = name.length * 7.4 + 14
+          const text = labelValue ? `${name} · ${labelValue(name)}` : name
+          const width = text.length * 7.4 + 14
           return <g key={name} onClick={() => choose(name)} className={'atlas-map-label' + (selected === name ? ' selected' : '')}>
             <path d={`M${x},${y}L${tx + (left ? 9 : -9)},${ty}H${tx}`} />
             {!overlay && <circle cx={x} cy={y} r={selected === name ? 4.3 : 2.6} />}
             <rect className="atlas-label-target" x={left ? tx - width : tx} y={ty - 19} width={width} height="38" rx="3" />
-            <text x={tx + (left ? -4 : 4)} y={ty + 4} textAnchor={anchor}>{name}</text>
+            <text x={tx + (left ? -4 : 4)} y={ty + 4} textAnchor={anchor}>{text}</text>
           </g>
         })}
         <g className="atlas-scale" transform={`translate(${xMin + 19} 449)`}>
