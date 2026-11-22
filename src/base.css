@@ -84,6 +84,7 @@ h1, h2, h3, p { margin-top: 0; }
     font-size: .86rem;
     line-height: 1.3;
   }
+  .staff-header .site-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .staff-header .site-nav .staff-log { padding: .45rem .25rem; }
   .case-header .language-select { flex-direction: column; gap: 0; font-size: .75rem; }
 }

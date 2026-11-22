@@ -27,7 +27,10 @@ const Page = path === '/' ? lazy(() => import('./impact/Impact'))
   : path === '/team' ? lazy(() => import('./team/Team'))
   : path === '/team/board' ? lazy(() => import('./helpout/TeamBoard')) : undefined
 const CommunityAssistant = !staff && Page ? lazy(() => import('./assistant/CommunityAssistant')) : undefined
-const pageTitle = (staff ? 'Team workspace' : path === '/' ? 'Community impact' : path === '/safety' ? 'Neighborhood data' : path === '/request' ? 'Request help' : path === '/help-out' ? 'Lend a hand' : path === '/status' ? 'Check a request' : 'Page unavailable')
+const pageTitle = path === '/team/board' ? 'Community board' : staff ? 'Team workspace'
+  : path === '/' ? 'Community impact' : path === '/safety' ? 'Neighborhood data'
+  : path === '/request' ? 'Request help' : path === '/help-out' ? 'Lend a hand'
+  : path === '/status' ? 'Check a request' : 'Page unavailable'
 
 const description = document.querySelector<HTMLMetaElement>('meta[name="description"]')
 const defaultDescription = description?.content ?? ''

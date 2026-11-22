@@ -30,6 +30,9 @@ try {
   assert.equal(await page.getByRole('link', { name: messages['Check a request'][0], exact: true }).getAttribute('href'), '/status')
   assert.equal(await language().inputValue(), 'es')
   await fit()
+  await page.getByRole('link', { name: messages['Lend a hand'][0], exact: true }).click()
+  await page.getByRole('heading', { name: 'Help your neighbors this week' }).waitFor()
+  assert.equal(await page.title(), 'ComForce Connect · ' + messages['Lend a hand'][0])
   await visit('/request')
   await page.getByLabel(messages.Food[0], { exact: true }).check()
   await page.getByLabel(messages.Transportation[0], { exact: true }).check()
@@ -56,18 +59,24 @@ try {
   const reference = await page.locator('.receipt-ref strong').innerText()
   assert.equal(await page.getByRole('link', { name: messages['Check request status'][1], exact: true }).getAttribute('href'), '/status?ref=' + encodeURIComponent(reference))
   await visit('/team')
-  // Long Hmong labels previously pushed the staff action onto a separate line.
   const phone = page.viewportSize()
-  await page.locator('.staff-header nav').waitFor()
+  const staffNav = page.locator('.staff-header nav')
+  await staffNav.waitFor()
+  assert.deepEqual(await staffNav.getByRole('link').evaluateAll(links => links.map(link => link.getAttribute('href'))),
+    ['/team', '/team/board', '/#my-workspace', '/request?source=call'])
   for (const width of [390, 1024, 1100]) {
     await page.setViewportSize({ width, height: phone.height })
     await page.evaluate(() => document.fonts.ready)
-    const centers = await page.locator('.staff-header nav a').evaluateAll(links => links.map(link => {
-      const box = link.getBoundingClientRect()
-      return box.top + box.height / 2
-    }))
-    assert.equal(centers.length, 3)
-    assert.ok(Math.max(...centers) - Math.min(...centers) < 1, 'Team navigation wrapped at ' + width)
+    const boxes = await staffNav.getByRole('link').evaluateAll(links => links.map(link => link.getBoundingClientRect().toJSON()))
+    const centers = boxes.map(box => box.top + box.height / 2)
+    assert.ok(boxes.every(box => box.height >= 44 && box.width >= 44), 'Team navigation touch targets at ' + width)
+    if (width === 390) {
+      assert.ok(Math.abs(centers[0] - centers[1]) < 1 && Math.abs(centers[2] - centers[3]) < 1)
+      assert.ok(boxes[0].bottom <= boxes[2].top && boxes[0].right <= boxes[1].left)
+    } else {
+      assert.ok(Math.max(...centers) - Math.min(...centers) < 1, 'Team navigation wrapped at ' + width)
+    }
+    await fit()
   }
   await page.setViewportSize(phone)
   await page.getByRole('searchbox').fill(reference)
@@ -94,7 +103,11 @@ try {
   await fit()
   await page.reload()
   assert.equal(await language().inputValue(), 'es')
+  await staffNav.getByRole('link', { name: messages['Community board'][0] }).click()
+  await page.getByRole('heading', { name: 'Lend a Hand board' }).waitFor()
+  assert.equal(await page.title(), 'ComForce Connect · ' + messages['Community board'][0])
   await visit('/team?mode=staff')
+  assert.equal(await staffNav.getByRole('link', { name: messages['Community board'][0] }).getAttribute('href'), '/team/board?mode=staff')
   await page.getByRole('heading', { name: messages['Staff sign-in'][0] }).waitFor()
   await page.getByRole('button', { name: messages['Send sign-in code'][0] }).click()
   assert.equal(await page.getByRole('alert').textContent(), messages['Complete the selected field.'][0])
