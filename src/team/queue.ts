@@ -9,6 +9,7 @@ export interface Need {
   service: Service
   status: NeedStatus
   assigned_staff_id: string | null
+  assignment_required?: boolean
   owner: string | null
   follow_up: string | null
   provider: string | null
@@ -63,9 +64,12 @@ export function isOverdue(need: Need, now: number) {
 export function partner(need: Need) {
   return need.partner_contact || need.referrals.find(attempt => !attempt.declined_at)?.partner
 }
+export function needsAssignment(need: Need) {
+  return need.assignment_required ?? !need.owner
+}
 export function nextAction(need: Need): Action | null {
   if (need.status !== 'open') return null
-  if (!need.owner) return 'assign'
+  if (needsAssignment(need)) return 'assign'
   if (need.follow_up) return 'check_in'
   if (need.service === 'family_support') return 'follow_up'
   const latest = need.history.find(event => ['direct', 'refer', 'decline'].includes(event.action))

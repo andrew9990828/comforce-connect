@@ -1,0 +1,43 @@
+name: Integration checks
+
+on:
+  push:
+    branches: ['hotfix/**']
+  pull_request:
+    branches: [integration]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  database-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.15.0
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Start clean Supabase database
+        run: npx supabase start
+      - name: Run SQL suite
+        run: npm run test:db
+      - name: Run browser walkthrough
+        run: |
+          npx supabase status -o env > /tmp/comforce-supabase.env
+          set -a
+          . /tmp/comforce-supabase.env
+          set +a
+          export VITE_SUPABASE_URL=/api
+          export VITE_SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY:-$ANON_KEY}"
+          npm run dev -- --host 127.0.0.1 > /tmp/comforce-vite.log 2>&1 &
+          timeout 60 bash -c 'until curl -fsS http://127.0.0.1:5173/ >/dev/null; do sleep 1; done'
+          CHROME_PATH=/usr/bin/google-chrome npm run test:live
+      - name: Stop local stack
+        if: always()
+        run: npx supabase stop --no-backup
