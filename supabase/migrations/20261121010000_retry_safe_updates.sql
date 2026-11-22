@@ -120,6 +120,7 @@ begin
     and (workspace is not null or actor_role='administrator' or n.assigned_staff_id=actor_uid)
   for update of n;
   if not found then raise insufficient_privilege using message='This need is unavailable or is not assigned to you.'; end if;
+  -- PL/pgSQL cannot mix a row variable with other targets in one INTO list.
   request_id := current_need.request_id;
   if p_key is null then
     raise exception using errcode='22023', message='Every update requires an operation key.';
