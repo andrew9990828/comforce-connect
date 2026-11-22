@@ -5,7 +5,8 @@ import { t } from '../languages/language'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { draftEvent, takeDraft } from '../assistant/draft'
 import { supabase } from '../supabase'
-import { isStaffMode, residentToken, staffContext } from '../workspace'
+import { ExpiredPairing, pairingRejected, isStaffMode, residentToken, staffContext } from '../workspace'
+import ResidentRepair from '../ResidentRepair'
 import { neighborhoods } from '../impact/neighborhoods'
 import { serviceLabels, type Service } from '../services'
 import { submissionKey, validate, type ContactMethod, type IntakeDraft } from './form'
@@ -28,6 +29,7 @@ export default function Intake() {
   const [source, setSource] = useState(staffEntry ? entry : 'web')
   const [key] = useState(submissionKey)
   const [errors, setErrors] = useState<ReturnType<typeof validate>>({})
+  const [expired, setExpired] = useState(false)
   const [failed, setFailed] = useState('')
   const [saving, setSaving] = useState(false)
   const [receipt, setReceipt] = useState<{ reference: string; needs: Service[]; method: ContactMethod } | null>(null)
@@ -91,6 +93,7 @@ export default function Intake() {
         p_family: family ? { support: description.trim(), safe_contact: safeContact.trim(), agency: agency.trim(), agency_reference: agencyReference.trim() } : null,
       })
       if (result.error || !result.data) {
+        if (!staffEntry && result.error && pairingRejected(token, result.status, result.error.code)) throw new ExpiredPairing()
         if (result.error?.code === '42501' && staffEntry) {
           setFailed('Sign in to the team workspace to log a call or text. Your entries are still here.')
           return
@@ -105,8 +108,9 @@ export default function Intake() {
       }
       setReceipt({ reference: result.data, needs: [...selected], method })
       window.scrollTo(0, 0)
-    } catch {
-      setFailed('We could not confirm your request. Your entries are still here. Check your connection and submit again.')
+    } catch (error) {
+      if (error instanceof ExpiredPairing) setExpired(true)
+      else setFailed('We could not confirm your request. Your entries are still here. Check your connection and submit again.')
     } finally {
       busy.current = false
       setSaving(false)
@@ -176,8 +180,9 @@ export default function Intake() {
               placeholder={method === 'email' ? 'resident@example.com' : '(414) 555-0100'} value={contact} aria-invalid={!!errors.contact} aria-describedby={describedBy('contact')}
               onChange={e => { (method === 'email' ? setEmail : setPhone)(e.target.value); clearError('contact') }}/>
             {message('contact')}</div>
+          {expired && <ResidentRepair onPaired={() => setExpired(false)}/>}
           {failed && <p className="intake-error submit-error" role="alert">{t(failed)}</p>}
-          <button type="submit" className="intake-submit">{saving ? t('Saving request…') : staffEntry ? t('Save and open case') : t('Submit request')}</button>
+          <button type="submit" disabled={expired} className="intake-submit">{saving ? t('Saving request…') : staffEntry ? t('Save and open case') : t('Submit request')}</button>
         </fieldset>
       </form>
       <aside className="intake-aside"><h2>{staffEntry ? t('After you save') : t('After you submit')}</h2>

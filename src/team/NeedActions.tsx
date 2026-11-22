@@ -3,9 +3,9 @@ import { t } from '../languages/language'
 // Case action editor. Codex (GPT-6) implemented direct queue actions and retry-safe follow-up outcomes.
 import { useRef, useState, type FormEvent } from 'react'
 import { supabase } from '../supabase'
-import { submissionKey } from '../intake/form'
 import type { StaffMember } from '../workspace'
 import { actionLabel, dated, nextAction, type Action, type Need } from './queue'
+import { pendingOperation } from './pendingOperation'
 
 const actions: Action[] = ['assign', 'partner_contact', 'follow_up', 'check_in', 'refer', 'decline', 'direct', 'fulfill', 'unmet']
 function localTime(instant: Date) {
@@ -21,10 +21,11 @@ interface Props {
   canAssign: boolean
   staffMembers: StaffMember[]
   demo: boolean
+  legacyApi: boolean
   onSaved: () => void
 }
 
-export default function NeedActions({ need, token, initial, owners, partners, canAssign, staffMembers, demo, onSaved }: Props) {
+export default function NeedActions({ need, token, initial, owners, partners, canAssign, staffMembers, demo, legacyApi, onSaved }: Props) {
   const activeRefs = need.referrals.filter(r => !r.declined_at)
   const [action, setAction] = useState<Action | null>(initial)
   const [value, setValue] = useState(initial === 'assign' ? (need.owner || '') : '')
@@ -36,7 +37,6 @@ export default function NeedActions({ need, token, initial, owners, partners, ca
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const operation = useRef<{ key: string; payload: string } | null>(null)
   const saving = useRef(false)
   const primary = nextAction(need)
 
@@ -50,7 +50,6 @@ export default function NeedActions({ need, token, initial, owners, partners, ca
     setSource('')
     setWhen(next === 'check_in' ? localTime(new Date()) : '')
     setAttempt(next === 'decline' ? activeRefs[0]?.id || '' : '')
-    operation.current = null
   }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -59,7 +58,7 @@ export default function NeedActions({ need, token, initial, owners, partners, ca
     if (invalid) { setError(invalid); return }
     const params: Record<string, string | null> = { p_token: token, p_need: need.id, p_action: action }
     if (action === 'assign') {
-      if (demo) params.p_value = value.trim() || null
+      if (demo || legacyApi) params.p_value = value.trim() || null
       else params.p_assignee = assignee || null
     } else if (['refer', 'unmet', 'partner_contact', 'check_in'].includes(action)) {
       params.p_value = value.trim()
@@ -76,15 +75,15 @@ export default function NeedActions({ need, token, initial, owners, partners, ca
       params.p_source = source.trim()
     }
     if ((action === 'decline' || action === 'fulfill') && attempt) params.p_referral = attempt
-    const payload = JSON.stringify(params)
-    if (operation.current?.payload !== payload) operation.current = { key: submissionKey(), payload }
-    params.p_key = operation.current.key
     saving.current = true
     setPending(true)
     setError('')
     try {
+      const operation = pendingOperation(params)
+      params.p_key = operation.key
       const { error } = await supabase.rpc('update_need', params)
       if (error) throw error
+      operation.confirm()
       choose(null)
       setNotice(action === 'check_in' ? 'Follow-up recorded. This need remains open.' : 'Update saved.')
       onSaved()
@@ -105,7 +104,7 @@ export default function NeedActions({ need, token, initial, owners, partners, ca
     {need.status === 'open' && (action ? <form noValidate onSubmit={save}>
       <fieldset disabled={pending}>
         <legend>{actionLabel(action, need)}</legend>
-        {action === 'assign' && (demo ? <label>{t("Worker name")}
+        {action === 'assign' && (demo || legacyApi ? <label>{t("Worker name")}
           <input list="case-workers" value={value} maxLength={80} onChange={e => setValue(e.target.value)} required={!need.owner} autoFocus />
           <datalist id="case-workers">{owners.map(name => <option key={name} value={name}/>)}</datalist>
         </label> : <label>{t("Assigned staff member")}

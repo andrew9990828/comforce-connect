@@ -3,7 +3,7 @@ import { t, demoText } from '../languages/language'
 // Staff case sheet. Codex (GPT-6) organized related needs, safe contact, verified updates and direct case actions.
 import { useEffect, useRef } from 'react'
 import type { StaffMember } from '../workspace'
-import { actionLabel, dated, historyDeadline, historyLabels, isOverdue, nextAction, outcome, partner, serviceLabels, statusLabels, type Action, type Need, type TeamRequest } from './queue'
+import { actionLabel, dated, historyDeadline, historyLabels, isOverdue, needsAssignment, nextAction, outcome, partner, serviceLabels, statusLabels, type Action, type Need, type TeamRequest } from './queue'
 import NeedActions from './NeedActions'
 
 interface Props {
@@ -16,12 +16,13 @@ interface Props {
   canAssign: boolean
   staffMembers: StaffMember[]
   demo: boolean
+  legacyApi: boolean
   onSelect: (need: Need) => void
   onClose: () => void
   onSaved: () => void
 }
 
-export default function CaseDetail({ request, need, initial, token, owners, partners, canAssign, staffMembers, demo, onSelect, onClose, onSaved }: Props) {
+export default function CaseDetail({ request, need, initial, token, owners, partners, canAssign, staffMembers, demo, legacyApi, onSelect, onClose, onSaved }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
   const openedForAction = useRef(!!initial)
   useEffect(() => {
@@ -53,7 +54,7 @@ export default function CaseDetail({ request, need, initial, token, owners, part
       <section className="case-work" aria-label={t('{service} details', { service: t(serviceLabels[need.service]) })}>
         <h3>{t(serviceLabels[need.service])}</h3>
         <dl className="case-facts">
-          <div><dt>{t("Owner")}</dt><dd>{need.owner || <span className="team-flag">{t("Unassigned")}</span>}</dd></div>
+          <div><dt>{t("Owner")}</dt><dd>{needsAssignment(need) ? <span className="team-flag">{need.owner ? need.owner + " · " + t("Link staff account") : t("Unassigned")}</span> : need.owner}</dd></div>
           <div><dt>{need.status === 'fulfilled' ? t('Delivered') : t('Deadline')}</dt>
             <dd>{isOverdue(need, Date.now()) && <span className="team-flag">{t("Overdue")}</span>}
               {need.fulfilled_at ? dated(need.fulfilled_at) : need.follow_up ? dated(need.follow_up) : need.status === 'open' ? t('Unscheduled') : t('Closed')}</dd></div>
@@ -61,7 +62,7 @@ export default function CaseDetail({ request, need, initial, token, owners, part
           {partner(need) && <div><dt>{t("Partner")}</dt><dd>{partner(need)}</dd></div>}
         </dl>
         <NeedActions key={need.id} need={need} initial={initial} token={token} owners={owners} partners={partners}
-          canAssign={canAssign} staffMembers={staffMembers} demo={demo} onSaved={onSaved}/>
+          canAssign={canAssign} staffMembers={staffMembers} demo={demo} legacyApi={legacyApi} onSaved={onSaved}/>
         {family && <dl className="case-family">
           <div><dt>{t("Requested family support")}</dt><dd>{demoText(family.support, demo)}</dd></div>
           <div><dt>{t("Safe follow-up")}</dt><dd>{demoText(family.safe_contact, demo)}</dd></div>

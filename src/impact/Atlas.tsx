@@ -2,7 +2,8 @@ import { t, monthLabel as label } from '../languages/language'
 // Interactive demo atlas. Codex (GPT-6) implemented scoped aggregate reads, month comparisons, map selection and trend controls.
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
-import { residentToken } from '../workspace'
+import { ExpiredPairing, pairingRejected, impactToken } from '../workspace'
+import ResidentRepair from '../ResidentRepair'
 import { neighborhoods } from './neighborhoods'
 import NeighborhoodMap from './NeighborhoodMap'
 
@@ -41,6 +42,7 @@ export default function Atlas() {
   const [rows, setRows] = useState<ImpactRow[] | null>(null)
   const [month, setMonth] = useState('')
   const [selected, setSelected] = useState('')
+  const [expired, setExpired] = useState(false)
   const [failed, setFailed] = useState(false)
   const [retry, setRetry] = useState(0)
   useEffect(() => {
@@ -52,18 +54,24 @@ export default function Atlas() {
       pending = controller
       const timeout = window.setTimeout(() => controller.abort(), 8000)
       try {
-        const token = await residentToken()
+        const token = await impactToken()
+        const result = await supabase.rpc('public_impact', { p_token: token, p_template: token === null }).abortSignal(controller.signal)
         if (disposed) return
-        const result = await supabase.rpc('public_impact', { p_token: token }).abortSignal(controller.signal)
+        if (result.error && pairingRejected(token, result.status, result.error.code)) throw new ExpiredPairing()
         if (result.error) throw result.error
         if (!disposed) {
           const fresh = (result.data ?? []) as ImpactRow[]
           setRows(fresh)
           setMonth(chosen => chosen || fresh.map(row => row.month).sort().at(-1) || chicagoMonth())
+          setExpired(false)
           setFailed(false)
         }
-      } catch {
-        if (!disposed) setFailed(true)
+      } catch (error) {
+        if (!disposed && error instanceof ExpiredPairing) {
+          setRows(null)
+          setExpired(true)
+          setFailed(false)
+        } else if (!disposed) setFailed(true)
       } finally {
         window.clearTimeout(timeout)
         pending = null
@@ -120,6 +128,7 @@ export default function Atlas() {
       </div>
     </header>
     <p className="atlas-instruction">{t("Explore fictional outcomes across six Milwaukee neighborhoods. Tap a name to see local totals.")}</p>
+    {expired && <ResidentRepair onPaired={() => { setExpired(false); setRetry(value => value + 1) }}/> }
     {failed && <div role="alert" className="atlas-error">
       {rows ? t('Refresh failed. The last available totals are shown.') : t('Demo outcomes are unavailable. Check your connection.')}
       <button type="button" onClick={() => setRetry(value => value + 1)}>{t("Retry")}</button>
