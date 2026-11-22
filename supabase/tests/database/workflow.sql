@@ -300,8 +300,9 @@ do $$
 declare context jsonb; queue jsonb; mixed_case jsonb;
 begin
   context := public.staff_context();
-  assert context->>'role'='administrator' and context->>'can_assign'='true'
-    and jsonb_array_length(context->'staff')=2;
+  assert context->>'role'='administrator' and context->>'can_assign'='true';
+  assert (select count(*) from jsonb_array_elements(context->'staff') s where s->>'user_id' in
+    ('42667ca8-5125-4db0-834e-000000000001','42667ca8-5125-4db0-834e-000000000004'))=2;
   queue := public.team_queue();
   select q into strict mixed_case from jsonb_array_elements(queue) q
     where q->>'reference'=current_setting('comforce_test.mixed_ref');

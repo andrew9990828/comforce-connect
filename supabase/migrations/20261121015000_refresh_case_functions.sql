@@ -240,3 +240,20 @@ begin
         'legacy_client',case when p_key is null then true end)));
   end if;
 end $$;
+
+-- Link legacy owner labels only when exactly one verified allowlisted account matches.
+-- Labels that cannot be matched remain visible to administrators as requiring assignment.
+with candidates as (
+  select n.id as need_id, min(u.id::text)::uuid as user_id
+  from comforce.needs n
+  join comforce.staff s on lower(n.owner) in (
+    lower(s.email), lower(split_part(s.email,'@',1)), lower(coalesce(s.display_name,''))
+  )
+  join auth.users u on lower(u.email)=lower(s.email) and u.email_confirmed_at is not null
+    and (s.user_id is null or s.user_id=u.id)
+  where n.owner is not null and n.assigned_staff_id is null
+  group by n.id
+  having count(*)=1
+)
+update comforce.needs n set assigned_staff_id=c.user_id
+from candidates c where c.need_id=n.id;

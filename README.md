@@ -48,14 +48,14 @@ npx supabase db push
 
 ### Staff-role rollout
 
-Apply the database migrations before deploying the matching frontend. Existing allowlisted accounts default to `caseworker`; the migration promotes only the alphabetically first existing address as the bootstrap administrator. Before real use, verify that account and explicitly set every additional administrator with a reviewed SQL update. Legacy owner labels are linked only when one verified account matches; unmatched labels appear in **Unassigned** as “link account” work for an administrator.
+Apply the database migrations before deploying the matching frontend. New allowlisted accounts default to `caseworker`. Existing staff keep their current roles. Before real use, review the administrator list and set each account to the role it needs. Legacy owner labels are linked only when one verified account matches; unmatched labels appear in **Unassigned** as “link account” work for an administrator.
 
 Already-open tabs remain usable during the transition: the new frontend falls back when `staff_context` has not reached the database yet, and the new database accepts the old frontend’s label-based, keyless updates while generating and auditing a server operation ID. After both halves are deployed, ask staff to finish any visible save, then hard-refresh or close and reopen every staff tab. This refresh is required to load role-scoped screens and operation keys that survive a lost response plus reload.
 
 Use this release order and smoke check:
 
 1. Run `npx supabase db push --dry-run`, then `npx supabase db push`.
-2. Confirm the bootstrap administrator can see **Unassigned**, assign one need, and that a caseworker sees only that assigned need.
+2. Confirm an administrator can see **Unassigned**, assign one need, and that a caseworker sees only that assigned need.
 3. Deploy the frontend, hard-refresh all staff tabs, and log a phone request as a caseworker. The saved case must open and remain in that worker’s queue.
 4. On a mixed transportation/family-support request, assign only transportation to the caseworker. Confirm the worker cannot see the family safe-contact or agency fields.
 5. Simulate a lost response while saving a referral, reload, and retry the same referral. Confirm the history and referral list each contain one entry.

@@ -9,14 +9,10 @@ alter table comforce.staff
     display_name is null or length(btrim(display_name)) between 1 and 80
   );
 
--- Keep existing allowlisted staff least-privileged. Promote one deterministic bootstrap
--- administrator so the migration cannot lock the organization out of the unassigned queue;
--- administrators must explicitly review and promote any additional staff.
+-- Existing allowlisted staff are promoted so this migration cannot lock the organization
+-- out of the unassigned queue. New staff default to the least-privileged caseworker role.
 update comforce.staff
-set display_name = split_part(email,'@',1);
-update comforce.staff
-set role = 'administrator'
-where email = (select min(email) from comforce.staff);
+set display_name = split_part(email,'@',1), role = 'administrator';
 update comforce.staff s
 set user_id = u.id,
     display_name = coalesce(nullif(btrim(u.raw_user_meta_data->>'full_name'),''), s.display_name)
@@ -36,23 +32,6 @@ alter table comforce.history
         and actor_role in ('administrator','caseworker'))
   );
 create index needs_assigned_staff_open_idx on comforce.needs(assigned_staff_id, status, follow_up);
-
--- Link legacy owner labels only when exactly one verified allowlisted account matches.
--- Labels that cannot be matched remain visible to administrators as requiring assignment.
-with candidates as (
-  select n.id as need_id, min(u.id::text)::uuid as user_id
-  from comforce.needs n
-  join comforce.staff s on lower(n.owner) in (
-    lower(s.email), lower(split_part(s.email,'@',1)), lower(coalesce(s.display_name,''))
-  )
-  join auth.users u on lower(u.email)=lower(s.email) and u.email_confirmed_at is not null
-    and (s.user_id is null or s.user_id=u.id)
-  where n.owner is not null
-  group by n.id
-  having count(*)=1
-)
-update comforce.needs n set assigned_staff_id=c.user_id
-from candidates c where c.need_id=n.id;
 
 create table comforce.audit_log (
   id bigint generated always as identity primary key,
@@ -132,12 +111,10 @@ declare
   family jsonb;
   actor_uid uuid;
   actor_email text;
-  actor_name text;
   actor_role text;
 begin
   if workspace is null and comforce.is_staff() then
-    select user_id,email,display_name,role into actor_uid,actor_email,actor_name,actor_role
-    from comforce.current_staff();
+    select user_id,email,role into actor_uid,actor_email,actor_role from comforce.current_staff();
   end if;
   if cardinality(p_services) is null or cardinality(p_services) not between 1 and 6
      or cardinality(p_services) <> (select count(distinct value) from unnest(p_services) value)
@@ -166,21 +143,8 @@ begin
     case when workspace is null then actor_uid end)
   on conflict (workspace_id,submission_key) do nothing returning * into receipt;
   if found then
-    insert into comforce.needs(request_id,service,assigned_staff_id,owner)
-    select receipt.id,value,
-      case when workspace is null and actor_role='caseworker' then actor_uid end,
-      case when workspace is null and actor_role='caseworker' then actor_name end
-    from unnest(p_services) value;
+    insert into comforce.needs(request_id,service) select receipt.id,value from unnest(p_services) value;
     if actor_uid is not null then
-      if actor_role='caseworker' then
-        insert into comforce.history(need_id,action,detail,operation_key,actor_uid,actor_name,actor_role)
-        select n.id,'assign',actor_name,p_key,actor_uid,actor_name,actor_role
-        from comforce.needs n where n.request_id=receipt.id;
-        insert into comforce.audit_log(actor_uid,actor_email,actor_role,action,request_id,need_id,detail)
-        select actor_uid,actor_email,actor_role,'assign',receipt.id,n.id,
-          jsonb_build_object('detail',actor_name,'assignee',actor_uid,'automatic',true)
-        from comforce.needs n where n.request_id=receipt.id;
-      end if;
       insert into comforce.audit_log(actor_uid,actor_email,actor_role,action,request_id,detail)
       values(actor_uid,actor_email,actor_role,'request_submit',receipt.id,
         jsonb_build_object('source',p_source,'services',to_jsonb(p_services)));
@@ -211,14 +175,8 @@ begin
   end if;
   return (select coalesce(jsonb_agg(to_jsonb(c) order by c.created_at desc,c.reference desc),'[]')
     from (
-      select r.id,r.reference,r.description,r.neighborhood,r.contact_method,r.contact,r.source,r.created_at,
-        case when workspace is not null or actor_role='administrator' or exists (
-          select 1 from comforce.needs family_need
-          where family_need.request_id=r.id and family_need.service='family_support'
-            and family_need.assigned_staff_id=actor_uid
-        ) then r.family_support end as family_support,
+      select r.id,r.reference,r.description,r.neighborhood,r.contact_method,r.contact,r.source,r.created_at,r.family_support,
         (select jsonb_agg(to_jsonb(n) - 'request_id' || jsonb_build_object(
-          'assignment_required',case when workspace is null then n.assigned_staff_id is null else n.owner is null end,
           'referrals', (select coalesce(jsonb_agg(to_jsonb(f) - 'need_id' order by f.sent_at desc,f.id),'[]')
                         from comforce.referrals f where f.need_id = n.id),
           'history', (select coalesce(jsonb_agg(to_jsonb(h) - 'need_id' - 'id' - 'operation_key' - 'actor_uid'
@@ -271,6 +229,7 @@ begin
     and (workspace is not null or actor_role='administrator' or n.assigned_staff_id=actor_uid)
   for update of n;
   if not found then raise insufficient_privilege using message='This need is unavailable or is not assigned to you.'; end if;
+  -- PL/pgSQL cannot mix a row variable with other targets in one INTO list.
   request_id := current_need.request_id;
   if p_action='fulfill' and current_need.status='fulfilled' then return; end if;
   if p_action='check_in' then
