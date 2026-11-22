@@ -8,7 +8,7 @@ import './home.css'
 export default function Home() {
   return <main className="start-page">
     <section className="start-hello" aria-labelledby="start-title">
-      <h1 id="start-title">Hi, neighbor. <span>What do you need today?</span></h1>
+      <h1 id="start-title">Hi, neighbor. <span>How can we serve you?</span></h1>
       <p>Tap a button to ask for help. Someone from our team will get back to you.</p>
     </section>
 
