@@ -1,4 +1,5 @@
 // App entry and route navigation. Codex (GPT-6) built the public and team layouts and route loading.
+// Claude (Opus 5.5) added the public-site assistant.
 import { lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@fontsource-variable/dm-sans/wght.css'
@@ -17,6 +18,7 @@ const Page = path === '/' ? lazy(() => import('./impact/Impact'))
   : path === '/safety' ? lazy(() => import('./safety/Safety'))
   : path === '/request' ? lazy(() => import('./intake/Intake'))
   : path === '/team' ? lazy(() => import('./team/Team')) : undefined
+const CommunityAssistant = !staff && Page ? lazy(() => import('./assistant/CommunityAssistant')) : undefined
 document.title = 'ComForce Connect · ' + (staff ? 'Team workspace' : path === '/' ? 'Community impact' : path === '/safety' ? 'Neighborhood data' : path === '/request' ? 'Request help' : 'Page unavailable')
 
 function App() {
@@ -47,6 +49,7 @@ function App() {
       {Page ? <Suspense fallback={<main className="missing-page" role="status">Loading…</main>}><Page /></Suspense>
         : <main className="missing-page"><h1>Page unavailable</h1><a href="/">Return to community impact</a></main>}
     </div>
+    {CommunityAssistant && <Suspense fallback={null}><CommunityAssistant /></Suspense>}
     <footer className="site-footer"><span>Community Task Force MKE</span><span>Milwaukee, Wisconsin</span></footer>
   </>
 }

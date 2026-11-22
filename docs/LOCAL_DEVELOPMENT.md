@@ -36,8 +36,15 @@ Install Node 22.15 or later and start Docker Desktop with Linux containers. From
 ```powershell
 npm ci
 npx supabase start
-if (!(Test-Path .env.local)) { Copy-Item .env.example .env.local }
 npx supabase status -o env | Select-String '^(PUBLISHABLE_KEY|ANON_KEY)='
+```
+
+Create `.env.local` in the repo root (git ignores it) with these lines. `OPENAI_API_KEY` is only needed for the website assistants and must never get a `VITE_` prefix.
+
+```sh
+VITE_SUPABASE_PUBLISHABLE_KEY=
+VITE_SUPABASE_URL=/api
+OPENAI_API_KEY=
 ```
 
 Set `VITE_SUPABASE_PUBLISHABLE_KEY` to the public key from the filtered output and keep `VITE_SUPABASE_URL=/api` locally. Start `npm run dev`. For a Wi-Fi presentation, build with those values and run `npm run preview -- --host YOUR_WIFI_IP --port 5173 --strictPort` on the Wi-Fi interface. A fresh CLI database uses the migrations and both configured seed files. To apply forward migrations to existing CLI data, run `npx supabase migration up --local`, then load only [demo_seed.sql](../supabase/demo_seed.sql) using the local Studio SQL Editor. For a normal restart, use `npx supabase stop` then `npx supabase start`.
