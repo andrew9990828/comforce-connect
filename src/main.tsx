@@ -1,6 +1,7 @@
 import LanguageSelect from './languages/LanguageSelect'
 import { t, useLanguage } from './languages/language'
 // App entry and route navigation. Codex (GPT-6) built the public and team layouts and route loading.
+// asherjaenchen with Claude Opus 5.5 added the /status route and its navigation link.
 // Claude (Opus 5.5) added the public-site assistant.
 import { lazy, Suspense, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -10,7 +11,7 @@ import { configured } from './supabase'
 import { acceptResidentLink, isStaffMode } from './workspace'
 
 const path = location.pathname.replace(/\/+$/, '') || '/'
-if (path === '/request' || path === '/') acceptResidentLink()
+if (path === '/request' || path === '/' || path === '/status') acceptResidentLink()
 const source = new URLSearchParams(location.search).get('source')
 const staffIntake = path === '/request' && (source === 'call' || source === 'text')
 const staff = path === '/team' || staffIntake
@@ -19,9 +20,10 @@ const log = '/request?source=call' + (isStaffMode() ? '&mode=staff' : '')
 const Page = path === '/' ? lazy(() => import('./impact/Impact'))
   : path === '/safety' ? lazy(() => import('./safety/Safety'))
   : path === '/request' ? lazy(() => import('./intake/Intake'))
+  : path === '/status' ? lazy(() => import('./status/Status'))
   : path === '/team' ? lazy(() => import('./team/Team')) : undefined
 const CommunityAssistant = !staff && Page ? lazy(() => import('./assistant/CommunityAssistant')) : undefined
-const pageTitle = (staff ? 'Team workspace' : path === '/' ? 'Community impact' : path === '/safety' ? 'Neighborhood data' : path === '/request' ? 'Request help' : 'Page unavailable')
+const pageTitle = (staff ? 'Team workspace' : path === '/' ? 'Community impact' : path === '/safety' ? 'Neighborhood data' : path === '/request' ? 'Request help' : path === '/status' ? 'Check a request' : 'Page unavailable')
 
 const description = document.querySelector<HTMLMetaElement>('meta[name="description"]')
 const defaultDescription = description?.content ?? ''
@@ -54,6 +56,7 @@ function App() {
           <a href="/" aria-current={path === '/' ? 'page' : undefined}>{t("Community impact")}</a>
           <a href="/safety" aria-current={path === '/safety' ? 'page' : undefined}>{t("Neighborhood data")}</a>
           <a href="/request" aria-current={path === '/request' ? 'page' : undefined}>{t("Request help")}</a>
+          <a href="/status" aria-current={path === '/status' ? 'page' : undefined}>{t("Check a request")}</a>
         </nav>}
       </div>
     </header>

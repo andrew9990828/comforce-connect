@@ -1,5 +1,6 @@
 import { t } from '../languages/language'
 // Resident and staff intake. Codex (GPT-6) implemented accessible multi-need submission and recovery.
+// asherjaenchen with Claude Opus 5.5 added the status-check link to the receipt, keeping community impact as a secondary link.
 // Claude (Opus 5.5) added pre-fill from the community assistant.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { draftEvent, takeDraft } from '../assistant/draft'
@@ -120,7 +121,10 @@ export default function Intake() {
         <h2>{t("Help you requested")}</h2><ul className="receipt-needs">{receipt.needs.map(id => <li key={id}>{t(serviceLabels[id])}</li>)}</ul>
         <h2>{t("What happens next")}</h2><p>{t('The demo team can review each need and follow up by {method} to arrange direct help or a partner referral.', { method: t(receipt.method) })}</p>
         {receipt.needs.includes('family_support') && <p>{t("Family support includes checking in with you. This form does not file an official missing-person report or dispatch assistance.")}</p>}
-        <a className="intake-next" href="/">{t("View community impact")}</a>
+        <h2>{t("Check your progress")}</h2>
+        <p>{t("Save your reference to check the progress of each need.")}</p>
+        <p className="receipt-actions"><a className="intake-next" href={'/status?ref=' + encodeURIComponent(receipt.reference)}>{t("Check request status")}</a>
+          <a className="receipt-secondary" href="/">{t("View community impact")}</a></p>
       </div>
     </article>
   </main>
