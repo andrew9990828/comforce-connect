@@ -326,6 +326,5 @@ export default function Intake() {
           : last ? t('Send my request') : t('Next →')}</button>
       </div>
     </form>
-    {guided && <p className="intake-talk"><Icon name="phone" size={20}/> {t('Rather talk to someone?')} <a href="tel:211">{t("Call 211")}</a></p>}
   </main>
 }

@@ -25,12 +25,7 @@ export default function Home() {
       <span className="start-arrow" aria-hidden="true">→</span>
     </a>
 
-    <section className="start-talk" aria-labelledby="talk-title">
-      <h2 id="talk-title">Rather talk to a person?</h2>
-      <div className="talk-options">
-        <a href="tel:211"><Icon name="phone"/><span><strong>Call 211</strong> Any time, day or night</span></a>
-        <a href="sms:898211"><Icon name="text"/><span><strong>Text your ZIP code</strong> to 898-211</span></a>
-      </div>
+    <section className="start-talk" aria-label="Emergency help">
       <p className="start-danger">In danger right now? <a href="tel:911">Call 911</a>.</p>
     </section>
 

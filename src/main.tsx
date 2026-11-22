@@ -90,7 +90,7 @@ function App() {
         : <main className="missing-page"><h1>{t("Page unavailable")}</h1><a href={route('/')}>{t("Return home")}</a></main>}
     </div>
     <footer className="site-footer"><img className="footer-lockup" src={lockupUrl} alt="Community Task Force MKE · ComForce MKE" />
-      {!staff && <p className="footer-help">{t("Need to talk to someone?")} <a href="tel:211">{t("Call 211")}</a> · {t("In danger?")} <a href="tel:911">{t("Call 911")}</a></p>}
+      {!staff && <p className="footer-help">{t("In danger?")} <a href="tel:911">{t("Call 911")}</a></p>}
       {!staff && <a className="footer-team" href={queue}>{t("Team workspace")}</a>}</footer>
   </>
 }
