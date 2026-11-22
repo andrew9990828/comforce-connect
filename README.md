@@ -2,22 +2,28 @@
 
 Community Task Force MKE helps Milwaukee residents get food, rides and family support. This Hacksgiving demo follows a request from the first call, text or web submission through partner contact and confirmed delivery. Use fictional details throughout.
 
-| Open on the demo laptop | What to try |
+| Open the hosted demo | What to try |
 | --- | --- |
-| [Community impact](http://127.0.0.1:5173/) | Tap a neighborhood and change the month. The map, outcome totals and six-month trend update together. |
-| [Neighborhood data](http://127.0.0.1:5173/safety) | Watch a 30-second heatmap of aggregated MPD incidents, pause on a month and compare the same 2025–2026 period. |
-| [Request help](http://127.0.0.1:5173/request) | Ask for multiple services and receive one reference. [Start with family support](http://127.0.0.1:5173/request?service=family_support). |
-| [Check a request](http://127.0.0.1:5173/status) | Look up a request using its reference and contact check. |
-| [Lend a hand](http://127.0.0.1:5173/help-out) | Offer supplies, volunteer or sign up for an event. Staff track offers on the [community board](http://127.0.0.1:5173/team/board). |
-| [Team workspace](http://127.0.0.1:5173/team) | Open a private fictional queue, pair a resident device, assign a worker and record a callback. |
+| [Community impact](https://comforce-connect.pages.dev/) | Tap a neighborhood and change the month. The map, outcome totals and six-month trend update together. |
+| [Neighborhood data](https://comforce-connect.pages.dev/safety) | Watch a 30-second heatmap of aggregated MPD incidents, pause on a month and compare the same 2025–2026 period. |
+| [Request help](https://comforce-connect.pages.dev/request) | Ask for multiple services and receive one reference. [Start with family support](https://comforce-connect.pages.dev/request?service=family_support). |
+| [Check a request](https://comforce-connect.pages.dev/status) | Look up a request using its reference and contact check. |
+| [Lend a hand](https://comforce-connect.pages.dev/help-out) | Offer supplies, volunteer or sign up for an event. Staff track offers on the [community board](https://comforce-connect.pages.dev/team/board). |
+| [Team workspace](https://comforce-connect.pages.dev/team) | Open a private fictional queue, pair a resident device, assign a worker and record a callback. |
+
+**Try a donation from offer to delivery**
+
+1. Open the [Community board](https://comforce-connect.pages.dev/team/board). Click **View the public board** to open the resident view of the same demo in a second tab.
+2. Under **Hygiene kits**, choose **I can bring some**. Offer **4** kits as **Sam**, use the fictional number **(414) 555-0142**, and click **Send my offer**. The public card shows the kits on the way.
+3. In the team tab, find Sam under **Offers of help**, enter **4** in **Arrived**, and click **Mark received**. The collected count on the public card increases by four. A fresh demo goes from **12 of 40** to **16 of 40**.
 
 The language selector works across the public site and team workspace. It starts with the browser’s preferred supported language and remembers later selections on that device. The available languages are English, Spanish, Hmong, German and Polish. The Census reports that 22% of Milwaukee city residents age five and older spoke a language other than English at home in 2020–2024. The City identifies Spanish and Hmong among the most common. [Census QuickFacts](https://www.census.gov/quickfacts/fact/table/milwaukeecitywisconsin/LFE046223) · [City of Milwaukee 2025 Recovery Plan](https://city.milwaukee.gov/ImageLibrary/Public/CDBG/ARPA/FINAL-2025-City-of-Milwaukee-Recovery-Plan.pdf)
 
 Translations ship in the app and incur no per-request translation fees. Edit `src/languages/messages.json` for interface text and `src/languages/demo.json` for fictional case narratives. Each English key has translations in the order Spanish, Hmong, German, Polish. Keep placeholders such as `{month}` in every translation. Residents and staff can type in any language. Their original notes, names and contact details stay as entered. Have fluent community reviewers check service terminology and safe-contact instructions before public use.
 
-With the local site running and the database migrations applied, run `node tests/languages.mjs` to verify language switching through the resident and team workflows.
+For local development, follow the [setup guide](docs/LOCAL_DEVELOPMENT.md) and open the [local app](http://127.0.0.1:5173/). With migrations applied, run `node tests/languages.mjs` to verify language switching through the resident and team workflows.
 
-The resident pages and staff workspace share one React/Vite build. The public impact page reads one shared, read-only fictional template without creating a workspace. Opening the team demo, visiting Lend a hand, or submitting a request creates a private copy that expires after 24 hours. There are 50 slots for these copies. A paired resident link grants submission and aggregate access to the laptop’s workspace. The separate [verified staff entrance](http://127.0.0.1:5173/team?mode=staff) reads the original staff records. Neighborhood data is a static, aggregate public-data view and does not require Supabase.
+The resident pages and staff workspace share one React/Vite build. The public impact page reads one shared, read-only fictional template without creating a workspace. Opening the team demo, visiting Lend a hand, or submitting a request creates a private copy that expires after 24 hours. There are 50 slots for these copies. A paired resident link grants submission and aggregate access to the laptop’s workspace. The separate [verified staff entrance](https://comforce-connect.pages.dev/team?mode=staff) reads the original staff records. Neighborhood data is a static, aggregate public-data view and does not require Supabase.
 
 ```mermaid
 flowchart LR
