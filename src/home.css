@@ -1,0 +1,63 @@
+/* Resident home: large tap targets, short words, one column on small phones. */
+.start-page { max-width: 1040px; margin: 0 auto; padding: clamp(1.5rem,4vw,3.5rem) clamp(1rem,4vw,2.5rem) 3rem; display: grid; gap: clamp(1.25rem,3vw,2rem); }
+.start-hello h1 { margin: 0; font-size: clamp(2.1rem,5.4vw,3.6rem); line-height: 1.05; letter-spacing: -.03em; color: var(--lake); font-weight: 700; }
+.start-hello h1 span { display: block; color: var(--teal); font-weight: 600; }
+.start-hello p { margin: .8rem 0 0; font-size: clamp(1.08rem,1.8vw,1.25rem); color: var(--ink); max-width: 36ch; }
+
+.start-needs { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: clamp(.6rem,1.6vw,1rem); }
+.need-tile {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 1.1rem;
+  min-height: clamp(7.5rem,15vw,10rem); padding: clamp(1rem,2vw,1.4rem);
+  background: var(--surface); color: var(--lake); text-decoration: none;
+  border: 2px solid var(--line); border-radius: 18px; box-shadow: 0 2px 0 var(--line);
+  transition: transform .15s, border-color .15s, box-shadow .15s;
+}
+.need-tile:hover { border-color: var(--teal); transform: translateY(-2px); box-shadow: 0 6px 18px -8px #0a4d2b55; }
+.need-tile:active { transform: none; }
+.need-icon { display: grid; place-items: center; width: 3.2rem; height: 3.2rem; border-radius: 14px; background: var(--mint-soft); color: var(--teal); flex: none; }
+.need-label { font-size: clamp(1.15rem,2vw,1.4rem); font-weight: 700; line-height: 1.15; }
+.need-family_support { border-color: #f1c9cb; }
+.need-family_support .need-icon { background: #fde8e9; color: var(--brand-red); }
+
+.start-status {
+  display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem; min-height: 4.5rem;
+  background: var(--lake); color: #fff; border-radius: 18px; text-decoration: none; font-size: clamp(1.1rem,1.8vw,1.25rem);
+}
+.start-status small { display: block; font-size: .8em; font-weight: 500; opacity: .85; }
+.start-status > span:nth-child(2) { font-weight: 700; flex: 1; }
+.start-status .need-icon { background: #ffffff22; color: #fff; }
+.start-arrow { font-size: 1.5rem; }
+.start-status:hover { background: var(--teal); }
+
+.start-talk { padding: clamp(1.1rem,2.5vw,1.6rem); background: var(--mint-soft); border-radius: 18px; }
+.start-talk h2, .start-areas h2 { margin: 0 0 .8rem; font-size: clamp(1.3rem,2.4vw,1.7rem); color: var(--lake); letter-spacing: -.01em; }
+.talk-options { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .7rem; }
+.talk-options a {
+  display: flex; align-items: center; gap: .85rem; padding: .9rem 1rem; min-height: 4rem;
+  background: var(--surface); color: var(--lake); border-radius: 14px; text-decoration: none; border: 2px solid transparent;
+}
+.talk-options a:hover { border-color: var(--teal); }
+.talk-options .icon { color: var(--teal); flex: none; }
+.talk-options strong { display: block; font-size: 1.1rem; }
+.start-danger { margin: .9rem 0 0; font-weight: 600; color: var(--ink); }
+.start-danger a { color: var(--brand-red); font-weight: 800; }
+
+.start-areas h2 { display: flex; align-items: center; gap: .45rem; }
+.start-areas h2 .icon { color: var(--teal); }
+.start-areas p { margin: -.3rem 0 .9rem; color: var(--muted); font-size: 1.05rem; }
+.start-areas nav { display: flex; flex-wrap: wrap; gap: .5rem; }
+.start-areas nav a {
+  padding: .7rem 1.1rem; min-height: 44px; display: inline-flex; align-items: center;
+  background: var(--surface); color: var(--lake); border: 2px solid var(--line); border-radius: 999px; text-decoration: none; font-weight: 600;
+}
+.start-areas nav a:hover { border-color: var(--teal); }
+
+@media (max-width: 720px) {
+  .start-needs { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .talk-options { grid-template-columns: 1fr; }
+}
+@media (max-width: 340px) {
+  .start-needs { grid-template-columns: 1fr; }
+  .need-tile { flex-direction: row; align-items: center; justify-content: flex-start; min-height: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .need-tile { transition: none; } .need-tile:hover { transform: none; } }

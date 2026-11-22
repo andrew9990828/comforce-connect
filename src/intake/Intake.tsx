@@ -1,25 +1,37 @@
 // Resident and staff intake. Codex (GPT-6) implemented accessible multi-need submission and recovery.
 // asherjaenchen with Claude Opus 5.5 added the status-check link to the receipt, keeping community impact as a secondary link.
-// Claude (Opus 5.5) added pre-fill from the community assistant.
+// Claude (Opus 5.5) added pre-fill from the community assistant, and split the resident form into four short steps with plain wording.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { draftEvent, takeDraft } from '../assistant/draft'
 import { preview, route } from '../preview/location'
 import { supabase } from '../supabase'
 import { isStaffMode, residentToken, staffContext } from '../workspace'
 import { neighborhoods } from '../impact/neighborhoods'
-import { serviceLabels, type Service } from '../services'
+import { residentLabels, serviceLabels, serviceOrder, type Service } from '../services'
+import Icon from '../Icon'
 import { submissionKey, validate, type ContactMethod, type IntakeDraft } from './form'
 import './intake.css'
 
 const entry = new URLSearchParams(location.search).get('source')
 const staffEntry = entry === 'call' || entry === 'text'
-const contactLabels = { phone: 'Call', text: 'Text', email: 'Email' } as const
+// Residents go one step at a time. Staff logging a call see every field at once.
+const guided = !staffEntry
+const contactLabels = { phone: 'Call me', text: 'Text me', email: 'Email me' } as const
+const secondLabels = { phone: 'Call', text: 'Text', email: 'Email' } as const
+const steps = ['What do you need?', 'Tell us a little more', 'Where are you?', 'How can we reach you?']
+const fieldStep: Record<keyof IntakeDraft, number> = {
+  services: 0, description: 1, safeContact: 1, agency: 1, agencyReference: 1, neighborhood: 2,
+  method: 3, contact: 3, secondMethod: 3, secondContact: 3,
+}
+const labels = staffEntry ? serviceLabels : residentLabels
 
 export default function Intake() {
   const [selected, select] = useState<Service[]>(() => {
     const service = new URLSearchParams(location.search).get('service')
     return service && Object.hasOwn(serviceLabels, service) ? [service as Service] : []
   })
+  // Coming from a home-page button means step 1 is already answered.
+  const [step, setStep] = useState(() => guided && selected.length ? 1 : 0)
   const [description, describe] = useState('')
   const [neighborhood, locate] = useState('')
   const [method, prefer] = useState<IntakeDraft['method']>('')
@@ -36,6 +48,10 @@ export default function Intake() {
   const [saving, setSaving] = useState(false)
   const [receipt, setReceipt] = useState<{ reference: string; needs: Service[]; method: ContactMethod; secondMethod: IntakeDraft['method'] } | null>(null)
   const busy = useRef(false)
+  const form = useRef<HTMLFormElement>(null)
+  const heading = useRef<HTMLHeadingElement>(null)
+  const focusNext = useRef<string | null>(null)
+  const firstRender = useRef(true)
   const contact = method === 'email' ? email : phone
   const secondContact = secondMethod === 'email' ? email : phone
   const sameNumber = method && secondMethod && method !== 'email' && secondMethod !== 'email'
@@ -54,13 +70,35 @@ export default function Intake() {
       if (draft.description) describe(draft.description.slice(0, draft.services.includes('family_support') ? 500 : 800))
       if (draft.neighborhood) locate(draft.neighborhood)
       setErrors({})
-      document.getElementById('description')?.focus()
+      focusNext.current = 'description'
+      setStep(1)
+      requestAnimationFrame(() => document.getElementById('description')?.focus())
     }
     apply()
     window.addEventListener(draftEvent, apply)
     return () => window.removeEventListener(draftEvent, apply)
   }, [])
 
+  // Moving between steps puts focus on the new question (or on the field that needs fixing).
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return }
+    if (!guided) return
+    const name = focusNext.current
+    focusNext.current = null
+    if (name) focusField(name)
+    else heading.current?.focus()
+  }, [step])
+
+  function focusField(name: string) {
+    const input = form.current?.elements.namedItem(name)
+    if (input instanceof HTMLElement) input.focus()
+    else if (input instanceof RadioNodeList) (input[0] as HTMLElement).focus()
+  }
+  function go(next: number, field?: string) {
+    focusNext.current = field ?? null
+    if (next === step) { if (field) focusField(field) } else setStep(next)
+    window.scrollTo(0, 0)
+  }
   function clearError(field: keyof IntakeDraft) {
     setErrors(current => ({ ...current, [field]: undefined }))
   }
@@ -74,13 +112,21 @@ export default function Intake() {
     event.preventDefault()
     if (busy.current) return
     const problems = validate({ services: selected, description, neighborhood, method, contact, secondMethod, secondContact, safeContact, agency, agencyReference })
-    setErrors(problems)
     setFailed('')
-    const first = Object.keys(problems)[0]
+    if (guided && step < steps.length - 1) {
+      // "Next" only checks the fields on this step.
+      const here = Object.fromEntries(Object.entries(problems).filter(([field]) => fieldStep[field as keyof IntakeDraft] === step))
+      setErrors(here)
+      const first = Object.keys(here)[0]
+      if (first) focusField(first)
+      else go(step + 1)
+      return
+    }
+    setErrors(problems)
+    const first = Object.keys(problems)[0] as keyof IntakeDraft | undefined
     if (first) {
-      const input = event.currentTarget.elements.namedItem(first)
-      if (input instanceof HTMLElement) input.focus()
-      else if (input instanceof RadioNodeList) (input[0] as HTMLElement).focus()
+      if (guided) go(fieldStep[first], first)
+      else focusField(first)
       return
     }
     if (!method) return
@@ -117,104 +163,143 @@ export default function Intake() {
       setReceipt({ reference: result.data, needs: [...selected], method, secondMethod })
       window.scrollTo(0, 0)
     } catch {
-      setFailed('We could not confirm your request. Your entries are still here. Check your connection and submit again.')
+      setFailed('Your request did not go through. Nothing you typed was lost. Check your internet and tap Send again.')
     } finally {
       busy.current = false
       setSaving(false)
     }
   }
 
-  if (receipt) return <main className="intake-page receipt-page">
-    <article className="intake-receipt" aria-labelledby="receipt-title">
-      <header className="receipt-top"><span className="receipt-check" aria-hidden="true">✓</span><span>Fictional demo submission</span></header>
-      <div className="receipt-body"><p className="receipt-ref">Reference <strong>{receipt.reference}</strong></p>
-        <h1 id="receipt-title" tabIndex={-1} ref={el => el?.focus()}>Request received</h1>
-        <h2>Help you requested</h2><ul className="receipt-needs">{receipt.needs.map(id => <li key={id}>{serviceLabels[id]}</li>)}</ul>
-        <h2>What happens next</h2><p>The demo team can review each need and follow up by {{ phone: 'phone', text: 'text', email: 'email' }[receipt.method]} to arrange direct help or a partner referral.</p>
-        {receipt.secondMethod && <p>Second-choice contact method: {contactLabels[receipt.secondMethod]}.</p>}
-        {receipt.needs.includes('family_support') && <p>Family support includes checking in with you. This form does not file an official missing-person report or dispatch assistance.</p>}
-        <h2>Check your progress</h2><p>Save your reference. You can see each need’s progress any time with it and {receipt.method === 'email' ? 'your email address' : 'the last 4 digits of your phone number'}.</p>
-        <p className="receipt-actions"><a className="intake-next" href={route('/status?ref=' + encodeURIComponent(receipt.reference))}>Check request status</a>
-          <a className="receipt-secondary" href={route('/impact')}>View community impact</a></p>
-      </div>
-    </article>
-  </main>
+  if (receipt) {
+    const reach = { phone: 'call you', text: 'text you', email: 'email you' }
+    return <main className="intake-page receipt-page">
+      <article className="intake-receipt" aria-labelledby="receipt-title">
+        <header className="receipt-top"><span className="receipt-check" aria-hidden="true">✓</span><span>Practice request (demo only)</span></header>
+        <div className="receipt-body">
+          <h1 id="receipt-title" tabIndex={-1} ref={el => el?.focus()}>We got your request!</h1>
+          <div className="receipt-number"><span>Your request number</span><strong>{receipt.reference}</strong>
+            <small>Write this down or take a screenshot. You need it to check on your request.</small></div>
+          <h2>You asked for</h2><ul className="receipt-needs">{receipt.needs.map(id => <li key={id}>{residentLabels[id]}</li>)}</ul>
+          <h2>What happens next</h2>
+          <p>Someone from our team will look at your request and {reach[receipt.method]}.</p>
+          {receipt.secondMethod && <p>If we can’t reach you, we’ll {reach[receipt.secondMethod]} instead.</p>}
+          {receipt.needs.includes('family_support') && <p>We can help your family and check in with you. This is not a police report. If someone is in danger, call 911.</p>}
+          <p className="receipt-actions"><a className="intake-next" href={route('/status?ref=' + encodeURIComponent(receipt.reference))}>Check on my request</a>
+            <a className="receipt-secondary" href={route('/impact')}>See how we help</a></p>
+        </div>
+      </article>
+    </main>
+  }
 
-  return <main className="intake-page">
-    <div className="intake-intro"><h1>{staffEntry ? 'Log a request' : family ? 'Request family support' : 'What do you need help with?'}</h1>
-      <p className="intake-followup"><strong>{staffEntry
-        ? (preview ? 'After you finish, you can preview the team queue.' : 'After you save, the case opens in your queue with all its needs together.')
-        : 'After you submit, you’ll receive one reference number for everything you select.'}</strong>
-        {' '}The team can arrange direct help for one need and refer another to a partner.</p></div>
-      <form className="intake-form" onSubmit={submit} noValidate aria-label="Request help" aria-busy={saving}>
-        <fieldset disabled={saving} className="intake-fields">
-          {staffEntry && <div className="intake-block"><label htmlFor="source">How did the request come in?</label>
-            <select id="source" value={source || 'call'} onChange={e => setSource(e.target.value)}>
-              <option value="call">Phone call</option><option value="text">Text message</option>
-            </select></div>}
-          <fieldset className="intake-block"><legend>Services needed (select all that apply)</legend>
-            <div className="service-options">{Object.entries(serviceLabels).map(([id, label]) =>
-              <label className="service-option" key={id}><input type="checkbox" name="services" value={id}
-                checked={selected.includes(id as Service)} aria-invalid={!!errors.services} aria-describedby={describedBy('services')}
-                onChange={e => { clearError('services'); select(e.target.checked ? [...selected, id as Service] : selected.filter(s => s !== id)) }}/>{label}</label>,
+  const show = (n: number) => !guided || step === n
+  const title = (n: number) => guided && <h2 className="step-title" tabIndex={-1} ref={step === n ? heading : undefined}>{n === 1 && family ? 'Tell us about your family' : steps[n]}</h2>
+  const last = step === steps.length - 1
+
+  return <main className={'intake-page' + (guided ? ' intake-guided' : '')}>
+    <div className="intake-intro">
+      <h1>{staffEntry ? 'Log a request' : 'Get help'}</h1>
+      {staffEntry
+        ? <p className="intake-followup"><strong>{preview ? 'After you finish, you can preview the team queue.' : 'After you save, the case opens in your queue with all its needs together.'}</strong>
+          {' '}The team can arrange direct help for one need and refer another to a partner.</p>
+        : <div className="step-progress">
+          <p>Step {step + 1} of {steps.length}</p>
+          <div className="step-bar" aria-hidden="true"><span style={{ width: ((step + 1) / steps.length * 100) + '%' }}/></div>
+        </div>}
+    </div>
+    <form ref={form} className="intake-form" onSubmit={submit} noValidate aria-label={staffEntry ? 'Log a request' : 'Get help'} aria-busy={saving}>
+      <fieldset disabled={saving} className="intake-fields">
+        {staffEntry && <div className="intake-block"><label htmlFor="source">How did the request come in?</label>
+          <select id="source" value={source || 'call'} onChange={e => setSource(e.target.value)}>
+            <option value="call">Phone call</option><option value="text">Text message</option>
+          </select></div>}
+
+        <section className="intake-step" hidden={!show(0)}>
+          {title(0)}
+          <fieldset className="intake-block"><legend>{guided ? 'Pick everything you need.' : 'Services needed (select all that apply)'}</legend>
+            <div className="service-options">{serviceOrder.map(id =>
+              <label className={'service-option option-' + id} key={id}><input type="checkbox" name="services" value={id}
+                checked={selected.includes(id)} aria-invalid={!!errors.services} aria-describedby={describedBy('services')}
+                onChange={e => { clearError('services'); select(e.target.checked ? [...selected, id] : selected.filter(s => s !== id)) }}/>
+                {guided && <Icon name={id} size={26}/>}<span>{labels[id]}</span></label>,
             )}</div>{message('services')}</fieldset>
-          {family && <p className="family-notice">The Missing Persons Network can support the family and coordinate follow-up. This form does not file an official missing-person report or dispatch assistance.</p>}
-          <div className="intake-block"><label htmlFor="description">{family ? 'What support would help your family?' : 'Description'}</label>
-            <textarea id="description" name="description" rows={3} maxLength={family ? 500 : 800} placeholder={family ? 'For example, a family check-in and a ride to a meeting.' : 'For example, groceries and a ride to an appointment.'}
-              value={description} onChange={e => { describe(e.target.value); clearError('description') }} required aria-invalid={!!errors.description} aria-describedby={describedBy('description')}/>
+        </section>
+
+        <section className="intake-step" hidden={!show(1)}>
+          {title(1)}
+          {family && <p className="family-notice">We can help your family and check in with you. This is not a police report. If someone is in danger right now, call 911.</p>}
+          <div className="intake-block"><label htmlFor="description">{family ? 'What would help your family right now?' : 'What do you need help with?'}</label>
+            {guided && <p className="intake-hint" id="description-hint">A sentence or two is fine.</p>}
+            <textarea id="description" name="description" rows={4} maxLength={family ? 500 : 800} placeholder={family ? 'Example: Someone to check in with us, and a ride to a meeting.' : 'Example: Groceries for my family and a ride to the doctor on Tuesday.'}
+              value={description} onChange={e => { describe(e.target.value); clearError('description') }} required aria-invalid={!!errors.description}
+              aria-describedby={[guided && 'description-hint', describedBy('description')].filter(Boolean).join(' ') || undefined}/>
             {message('description')}</div>
           {family && <>
-            <div className="intake-block"><label htmlFor="safeContact">How can staff follow up safely?</label>
-              <input id="safeContact" name="safeContact" value={safeContact} required maxLength={300} placeholder="For example, text after 4 p.m. Please don’t leave a voicemail."
+            <div className="intake-block"><label htmlFor="safeContact">When and how is it safe to reach you?</label>
+              <input id="safeContact" name="safeContact" value={safeContact} required maxLength={300} placeholder="Example: Text me after 4 p.m. Please don’t leave a voicemail."
                 onChange={e => { setSafeContact(e.target.value); clearError('safeContact') }} aria-invalid={!!errors.safeContact} aria-describedby={describedBy('safeContact')}/>
               {message('safeContact')}</div>
-            <details className="intake-partner"><summary>Add partner or agency details (optional)</summary>
-              <div className="intake-block"><label htmlFor="agency">Partner or agency already involved</label>
+            <details className="intake-partner"><summary>Is another group already helping? (optional)</summary>
+              <div className="intake-block"><label htmlFor="agency">Name of the group or agency</label>
                 <input id="agency" name="agency" value={agency} maxLength={120} onChange={e => setAgency(e.target.value)}/>{message('agency')}</div>
-              <div className="intake-block"><label htmlFor="agencyReference">Agency reference number (optional)</label>
+              <div className="intake-block"><label htmlFor="agencyReference">Their case number, if you have one</label>
                 <input id="agencyReference" name="agencyReference" value={agencyReference} maxLength={80} onChange={e => setAgencyReference(e.target.value)}/>{message('agencyReference')}</div>
             </details></>}
-          <div className="intake-block"><label htmlFor="neighborhood">Neighborhood</label>
+        </section>
+
+        <section className="intake-step" hidden={!show(2)}>
+          {title(2)}
+          <div className="intake-block"><label htmlFor="neighborhood">Which neighborhood are you in?</label>
             <select id="neighborhood" name="neighborhood" required value={neighborhood} aria-invalid={!!errors.neighborhood} aria-describedby={describedBy('neighborhood')}
-              onChange={e => { locate(e.target.value); clearError('neighborhood') }}><option value="">Select a neighborhood</option>
-              <option value="Unknown">Unknown / unsure</option>{neighborhoods.map(name => <option key={name}>{name}</option>)}</select>
+              onChange={e => { locate(e.target.value); clearError('neighborhood') }}><option value="">Choose one</option>
+              {neighborhoods.map(name => <option key={name}>{name}</option>)}<option value="Unknown">I’m not sure</option></select>
             {message('neighborhood')}</div>
-          <div className="intake-block"><label htmlFor="method">First-choice contact method (required)</label>
-            <select id="method" name="method" required value={method} aria-invalid={!!errors.method} aria-describedby={describedBy('method')}
-              onChange={e => {
-                const next = e.target.value as ContactMethod
-                prefer(next)
-                if (next === secondMethod) setSecondMethod('')
-                clearError('method'); clearError('contact'); clearError('secondContact')
-              }}>
-              <option value="" disabled>Choose how to contact you first</option>
-              {Object.entries(contactLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>{message('method')}</div>
-          {method && <div className="intake-block"><label htmlFor="contact">{method === 'email' ? 'Email address' : 'Phone number'}</label>
-            <input id="contact" name="contact" type={method === 'email' ? 'email' : 'tel'} autoComplete="off" maxLength={method === 'email' ? 254 : 35} required
-              placeholder={method === 'email' ? 'resident@example.com' : '(414) 555-0100'} value={contact} aria-invalid={!!errors.contact} aria-describedby={describedBy('contact')}
+        </section>
+
+        <section className="intake-step" hidden={!show(3)}>
+          {title(3)}
+          <fieldset className="intake-block"><legend>{guided ? 'Pick the best way.' : 'First-choice contact method (required)'}</legend>
+            <div className="contact-options">{(Object.keys(contactLabels) as ContactMethod[]).map(value =>
+              <label className="service-option contact-option" key={value}><input type="radio" name="method" value={value}
+                checked={method === value} aria-invalid={!!errors.method} aria-describedby={describedBy('method')}
+                onChange={() => {
+                  prefer(value)
+                  if (value === secondMethod) setSecondMethod('')
+                  clearError('method'); clearError('contact'); clearError('secondContact')
+                }}/><Icon name={value} size={24}/><span>{contactLabels[value]}</span></label>)}
+            </div>{message('method')}</fieldset>
+          {method && <div className="intake-block"><label htmlFor="contact">{method === 'email' ? 'Your email' : 'Your phone number'}</label>
+            <input id="contact" name="contact" type={method === 'email' ? 'email' : 'tel'} autoComplete={method === 'email' ? 'email' : 'tel'} maxLength={method === 'email' ? 254 : 35} required
+              placeholder={method === 'email' ? 'name@example.com' : '(414) 555-0100'} value={contact} aria-invalid={!!errors.contact} aria-describedby={describedBy('contact')}
               onChange={e => { (method === 'email' ? setEmail : setPhone)(e.target.value); clearError('contact'); if (sameNumber) clearError('secondContact') }}/>
             {message('contact')}</div>}
-          {method && <div className="intake-block"><label htmlFor="secondMethod">Second-choice contact method (optional)</label>
+          {method && <div className="intake-block"><label htmlFor="secondMethod">Another way to reach you (optional)</label>
             <select id="secondMethod" name="secondMethod" value={secondMethod}
               onChange={e => { setSecondMethod(e.target.value as IntakeDraft['method']); clearError('secondMethod'); clearError('secondContact') }}>
-              <option value="">No second choice</option>
-              {Object.entries(contactLabels).filter(([value]) => value !== method).map(([value, label]) =>
-                <option key={value} value={value}>{label}</option>)}
+              <option value="">No, that’s all</option>
+              {(Object.keys(secondLabels) as ContactMethod[]).filter(value => value !== method).map(value =>
+                <option key={value} value={value}>{secondLabels[value]}</option>)}
             </select>{message('secondMethod')}
-            {sameNumber && <p>We’ll use the same phone number for calls and texts.</p>}
+            {sameNumber && <p className="intake-hint">We’ll use the same phone number.</p>}
           </div>}
           {secondMethod && !sameNumber && <div className="intake-block">
-            <label htmlFor="secondContact">Second-choice {secondMethod === 'email' ? 'email address' : 'phone number'}</label>
+            <label htmlFor="secondContact">{secondMethod === 'email' ? 'Your email' : 'Your phone number'} (second choice)</label>
             <input id="secondContact" name="secondContact" type={secondMethod === 'email' ? 'email' : 'tel'}
               value={secondContact} required maxLength={secondMethod === 'email' ? 254 : 35}
               aria-invalid={!!errors.secondContact} aria-describedby={describedBy('secondContact')}
               onChange={e => { (secondMethod === 'email' ? setEmail : setPhone)(e.target.value); clearError('secondContact') }}/>
             {message('secondContact')}</div>}
-          {failed && <p className="intake-error submit-error" role="alert">{failed}</p>}
-          <p className="intake-hint">{preview ? 'Use fictional details. Preview entries are never saved.' : 'Use fictional details for this demo.'}</p>
-          <button type="submit" className="intake-submit">{saving ? 'Saving request…' : staffEntry ? (preview ? 'Preview queue' : 'Save and open case') : 'Submit request'}</button>
-        </fieldset>
-      </form>
+        </section>
+
+        {failed && <p className="intake-error submit-error" role="alert">{failed}</p>}
+        {(!guided || last) && <p className="intake-hint">{preview ? 'This is a practice form. Nothing is saved.' : 'This is a demo. Please use made-up details.'}</p>}
+        <div className="intake-actions">
+          {guided && step > 0 && <button type="button" className="intake-back" onClick={() => go(step - 1)}>← Back</button>}
+          <button type="submit" className="intake-submit">{saving ? 'Sending…'
+            : staffEntry ? (preview ? 'Preview queue' : 'Save and open case')
+            : last ? 'Send my request' : 'Next →'}</button>
+        </div>
+      </fieldset>
+    </form>
+    {guided && <p className="intake-talk"><Icon name="phone" size={20}/> Rather talk to someone? <a href="tel:211">Call 211</a></p>}
   </main>
 }

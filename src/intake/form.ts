@@ -15,24 +15,24 @@ export interface IntakeDraft {
 }
 export function validate(draft: IntakeDraft) {
   const errors: Partial<Record<keyof IntakeDraft, string>> = {}
-  if (!draft.services.length) errors.services = 'Choose at least one service.'
+  if (!draft.services.length) errors.services = 'Pick at least one thing you need.'
   const family = draft.services.includes('family_support')
   const maxDescription = family ? 500 : 800
-  if (!draft.description.trim()) errors.description = family ? 'Tell us what support your family wants.' : 'Describe the help needed in a sentence or two.'
-  else if (draft.description.trim().length > maxDescription) errors.description = `Keep the description to ${maxDescription} characters or fewer.`
-  if (family && (!draft.safeContact?.trim() || draft.safeContact.trim().length > 300)) errors.safeContact = 'Give a safe time or way to follow up, in 300 characters or fewer.'
-  if (family && (draft.agency?.trim().length ?? 0) > 120) errors.agency = 'Keep the partner or agency name to 120 characters or fewer.'
-  if (family && (draft.agencyReference?.trim().length ?? 0) > 80) errors.agencyReference = 'Keep the reference to 80 characters or fewer.'
-  if (!draft.neighborhood) errors.neighborhood = 'Choose a neighborhood or select Unknown.'
+  if (!draft.description.trim()) errors.description = family ? 'Tell us what would help your family.' : 'Tell us what you need. A sentence or two is fine.'
+  else if (draft.description.trim().length > maxDescription) errors.description = `Please make this shorter (${maxDescription} letters or less).`
+  if (family && (!draft.safeContact?.trim() || draft.safeContact.trim().length > 300)) errors.safeContact = 'Tell us a safe time or way to reach you.'
+  if (family && (draft.agency?.trim().length ?? 0) > 120) errors.agency = 'Please make this name shorter.'
+  if (family && (draft.agencyReference?.trim().length ?? 0) > 80) errors.agencyReference = 'Please make this number shorter.'
+  if (!draft.neighborhood) errors.neighborhood = 'Pick your neighborhood, or choose “I’m not sure.”'
   if (!['phone', 'text', 'email'].includes(draft.method)) {
-    errors.method = 'Choose how you want to be contacted first.'
+    errors.method = 'Pick how we should reach you.'
   } else {
     const error = contactError(draft.method, draft.contact.trim())
     if (error) errors.contact = error
   }
   if (draft.secondMethod) {
     if (draft.secondMethod === draft.method || !['phone', 'text', 'email'].includes(draft.secondMethod)) {
-      errors.secondMethod = 'Choose a different second contact method.'
+      errors.secondMethod = 'Pick a different second way to reach you.'
     } else {
       const error = contactError(draft.secondMethod, draft.secondContact?.trim() || '')
       if (error) errors.secondContact = error
@@ -43,9 +43,9 @@ export function validate(draft: IntakeDraft) {
 
 function contactError(method: ContactMethod | '', contact: string) {
   if (method === 'email') {
-    if (contact.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) return 'Enter an email address such as resident@example.com.'
+    if (contact.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) return 'Type your email, like name@example.com.'
   } else if (contact.length > 35 || !/^[+\d(). -]+$/.test(contact) || !/^\d{7,15}$/.test(contact.replace(/\D/g, ''))) {
-    return 'Enter a phone number, including the area code.'
+    return 'Type your phone number with the area code, like (414) 555-0100.'
   }
 }
 
