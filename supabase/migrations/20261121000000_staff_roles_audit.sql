@@ -206,6 +206,7 @@ declare
   actor_name text;
   actor_role text;
   target_name text;
+  request_id uuid;
   label text := nullif(btrim(p_value),'');
   verified_source text;
   provider_name text := 'ComForce';
@@ -228,6 +229,8 @@ begin
     and (workspace is not null or actor_role='administrator' or n.assigned_staff_id=actor_uid)
   for update of n;
   if not found then raise insufficient_privilege using message='This need is unavailable or is not assigned to you.'; end if;
+  -- PL/pgSQL cannot mix a row variable with other targets in one INTO list.
+  request_id := current_need.request_id;
   if p_action='fulfill' and current_need.status='fulfilled' then return; end if;
   if p_action='check_in' then
     verified_source := nullif(btrim(p_source),'');
@@ -301,7 +304,7 @@ begin
     actor_uid,actor_name,actor_role);
   if workspace is null then
     insert into comforce.audit_log(actor_uid,actor_email,actor_role,action,request_id,need_id,detail)
-    values(actor_uid,actor_email,actor_role,p_action,current_need.request_id,p_need,
+    values(actor_uid,actor_email,actor_role,p_action,request_id,p_need,
       jsonb_strip_nulls(jsonb_build_object('detail',detail,'assignee',case when p_action='assign' then p_assignee end)));
   end if;
 end $$;

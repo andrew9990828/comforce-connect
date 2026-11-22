@@ -19,18 +19,18 @@ function initialLanguage(): Language {
     const saved = supported(localStorage.getItem(storageKey))
     if (saved) return saved
   } catch { /* Keep the selector usable when storage is disabled. */ }
-  return navigator.languages.map(supported).find(Boolean) ?? 'en'
+  return (typeof navigator === 'undefined' ? [] : navigator.languages ?? []).map(supported).find(Boolean) ?? 'en'
 }
 let language = initialLanguage()
 const listeners = new Set<() => void>()
 
 function applyLanguage(next: Language) {
   language = next
-  document.documentElement.lang = next
+  if (typeof document !== 'undefined') document.documentElement.lang = next
   listeners.forEach(listener => listener())
 }
 applyLanguage(language)
-window.addEventListener('storage', event => {
+if (typeof window !== 'undefined') window.addEventListener('storage', event => {
   if (event.key === storageKey || event.key === null) applyLanguage(initialLanguage())
 })
 export function setLanguage(next: Language) {

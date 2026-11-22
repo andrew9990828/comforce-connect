@@ -1,11 +1,14 @@
 import { t, demoText } from '../languages/language'
 // Staff workspace. Codex (GPT-6) built isolated case queues, scoped polling and history-aware direct actions.
+// Claude (Opus 5.5) added the team assistant.
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabase'
 import { isStaffMode, staffContext } from '../workspace'
 import CaseDetail from './CaseDetail'
 import TeamLogin from './TeamLogin'
 import ResidentPairing from './ResidentPairing'
+import TeamAssistant from '../assistant/TeamAssistant'
+import { clearTeamChats, scopeLabel } from '../assistant/conversation'
 import { actionLabel, dated, isOverdue, nextAction, outcome, partner, serviceLabels, statusLabels, type Action, type Need, type NeedStatus, type Service, type TeamRequest } from './queue'
 import './team.css'
 
@@ -199,8 +202,15 @@ function Workspace({ staff }: { staff: boolean }) {
       {selected.reference && !currentRequest && <div role="status" className="team-error">{t("This case is unavailable in this workspace.")} <button onClick={closeCase}>{t("Return to queue")}</button></div>}
     </>}
     <footer className="team-footer">{staff ? <><a href="/team">{t("Open fictional demo")}</a>
-      <button onClick={async () => { const { error } = await supabase.auth.signOut({ scope:'local' }); if (error) setError('Sign-out failed. Try again.') }}>{t("Sign out")}</button></>
+      <button onClick={async () => { clearTeamChats(); const { error } = await supabase.auth.signOut({ scope:'local' }); if (error) setError('Sign-out failed. Try again.') }}>{t("Sign out")}</button></>
       : <a href="/team?mode=staff">{t("Staff sign-in")}</a>}</footer>
+    {requests && membership && <TeamAssistant token={membership.token} hidden={!!currentRequest} onSaved={refresh}
+      scope={staff ? `staff-${membership.userId}` : `demo-${scopeLabel(membership.token ?? '')}`}
+      onOpenCase={(reference, needId) => {
+        const request = requests.find(r => r.reference === reference)
+        const need = request?.needs.find(n => n.id === needId)
+        if (request && need) openCase(request, need, null)
+      }}/>}
     {!!currentRequest && !!currentNeed && membership && <CaseDetail request={currentRequest} need={currentNeed} initial={initialAction} token={membership.token}
       owners={owners} partners={partners} canAssign={membership.canAssign} staffMembers={membership.staff} demo={!staff}
       onSelect={need => openCase(currentRequest, need, null)} onSaved={refresh} onClose={closeCase}/>}
@@ -212,7 +222,11 @@ export default function Team() {
   const [account, setAccount] = useState<string | null | undefined>(undefined)
   useEffect(() => {
     if (!staff) return
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => setAccount(session?.user.id ?? null))
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      // Covers sign-out from another tab or an expired session, as well as the Sign out button.
+      if (event === 'SIGNED_OUT') clearTeamChats()
+      setAccount(session?.user.id ?? null)
+    })
     return () => data.subscription.unsubscribe()
   }, [staff])
   if (staff && account === undefined) return <main className="team-page" role="status">{t("Checking staff session…")}</main>
