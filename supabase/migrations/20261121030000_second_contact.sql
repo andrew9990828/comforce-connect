@@ -26,10 +26,12 @@ declare
   family jsonb;
   actor_uid uuid;
   actor_email text;
+  actor_name text;
   actor_role text;
 begin
   if workspace is null and comforce.is_staff() then
-    select user_id,email,role into actor_uid,actor_email,actor_role from comforce.current_staff();
+    select user_id,email,display_name,role into actor_uid,actor_email,actor_name,actor_role
+    from comforce.current_staff();
   end if;
   if cardinality(p_services) is null or cardinality(p_services) not between 1 and 6
      or cardinality(p_services) <> (select count(distinct value) from unnest(p_services) value)
@@ -58,8 +60,21 @@ begin
     case when workspace is null then actor_uid end)
   on conflict (workspace_id,submission_key) do nothing returning * into receipt;
   if found then
-    insert into comforce.needs(request_id,service) select receipt.id,value from unnest(p_services) value;
+    insert into comforce.needs(request_id,service,assigned_staff_id,owner)
+    select receipt.id,value,
+      case when workspace is null and actor_role='caseworker' then actor_uid end,
+      case when workspace is null and actor_role='caseworker' then actor_name end
+    from unnest(p_services) value;
     if actor_uid is not null then
+      if actor_role='caseworker' then
+        insert into comforce.history(need_id,action,detail,operation_key,actor_uid,actor_name,actor_role)
+        select n.id,'assign',actor_name,p_key,actor_uid,actor_name,actor_role
+        from comforce.needs n where n.request_id=receipt.id;
+        insert into comforce.audit_log(actor_uid,actor_email,actor_role,action,request_id,need_id,detail)
+        select actor_uid,actor_email,actor_role,'assign',receipt.id,n.id,
+          jsonb_build_object('detail',actor_name,'assignee',actor_uid,'automatic',true)
+        from comforce.needs n where n.request_id=receipt.id;
+      end if;
       insert into comforce.audit_log(actor_uid,actor_email,actor_role,action,request_id,detail)
       values(actor_uid,actor_email,actor_role,'request_submit',receipt.id,
         jsonb_build_object('source',p_source,'services',to_jsonb(p_services)));
@@ -90,8 +105,14 @@ begin
   end if;
   return (select coalesce(jsonb_agg(to_jsonb(c) order by c.created_at desc,c.reference desc),'[]')
     from (
-      select r.id,r.reference,r.description,r.neighborhood,r.contact_method,r.contact,r.source,r.created_at,r.family_support,r.second_method,r.second_contact,
+      select r.id,r.reference,r.description,r.neighborhood,r.contact_method,r.contact,r.source,r.created_at,r.second_method,r.second_contact,
+        case when workspace is not null or actor_role='administrator' or exists (
+          select 1 from comforce.needs family_need
+          where family_need.request_id=r.id and family_need.service='family_support'
+            and family_need.assigned_staff_id=actor_uid
+        ) then r.family_support end as family_support,
         (select jsonb_agg(to_jsonb(n) - 'request_id' || jsonb_build_object(
+          'assignment_required',case when workspace is null then n.assigned_staff_id is null else n.owner is null end,
           'referrals', (select coalesce(jsonb_agg(to_jsonb(f) - 'need_id' order by f.sent_at desc,f.id),'[]')
                         from comforce.referrals f where f.need_id = n.id),
           'history', (select coalesce(jsonb_agg(to_jsonb(h) - 'need_id' - 'id' - 'operation_key' - 'actor_uid'
