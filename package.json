@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/intake.test.mjs tests/crime-data.test.mjs tests/assistant.test.mjs tests/helpout.test.mjs",
+    "test": "node --experimental-strip-types --test tests/intake.test.mjs tests/crime-data.test.mjs tests/status.test.mjs tests/assistant.test.mjs tests/helpout.test.mjs",
+    "test:ui": "node --test tests/status-ui.test.mjs",
     "test:db": "supabase test db",
     "test:assistant": "node --env-file-if-exists=.env.local tests/assistant.mjs",
     "test:assistant-ui": "node tests/assistant-ui.mjs",

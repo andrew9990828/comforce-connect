@@ -1,5 +1,6 @@
 // App entry and route navigation. Codex (GPT-6) built the public and team layouts and route loading.
 // asherjaenchen with Claude Opus 5.5 added the Lend a Hand routes (/help-out and /team/board).
+// asherjaenchen with Claude Opus 5.5 added the /status route and its navigation link.
 // Claude (Opus 5.5) added the public-site assistant.
 import { lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -9,7 +10,7 @@ import { configured } from './supabase'
 import { acceptResidentLink, isStaffMode } from './workspace'
 
 const path = location.pathname.replace(/\/+$/, '') || '/'
-if (path === '/request' || path === '/' || path === '/help-out') acceptResidentLink()
+if (path === '/request' || path === '/' || path === '/help-out' || path === '/status') acceptResidentLink()
 const source = new URLSearchParams(location.search).get('source')
 const staffIntake = path === '/request' && (source === 'call' || source === 'text')
 const staff = path === '/team' || path === '/team/board' || staffIntake
@@ -19,11 +20,12 @@ const log = '/request?source=call' + (isStaffMode() ? '&mode=staff' : '')
 const Page = path === '/' ? lazy(() => import('./impact/Impact'))
   : path === '/safety' ? lazy(() => import('./safety/Safety'))
   : path === '/request' ? lazy(() => import('./intake/Intake'))
+  : path === '/status' ? lazy(() => import('./status/Status'))
   : path === '/help-out' ? lazy(() => import('./helpout/HelpOut'))
   : path === '/team' ? lazy(() => import('./team/Team'))
   : path === '/team/board' ? lazy(() => import('./helpout/TeamBoard')) : undefined
 const CommunityAssistant = !staff && Page ? lazy(() => import('./assistant/CommunityAssistant')) : undefined
-document.title = 'ComForce Connect · ' + (staff ? 'Team workspace' : path === '/' ? 'Community impact' : path === '/safety' ? 'Neighborhood data' : path === '/request' ? 'Request help' : path === '/help-out' ? 'Lend a hand' : 'Page unavailable')
+document.title = 'ComForce Connect · ' + (staff ? 'Team workspace' : path === '/' ? 'Community impact' : path === '/safety' ? 'Neighborhood data' : path === '/request' ? 'Request help' : path === '/help-out' ? 'Lend a hand' : path === '/status' ? 'Check a request' : 'Page unavailable')
 
 function App() {
   return <>
@@ -47,6 +49,7 @@ function App() {
           <a href="/safety" aria-current={path === '/safety' ? 'page' : undefined}>Neighborhood data</a>
           <a href="/request" aria-current={path === '/request' ? 'page' : undefined}>Request help</a>
           <a href="/help-out" aria-current={path === '/help-out' ? 'page' : undefined}>Lend a hand</a>
+          <a href="/status" aria-current={path === '/status' ? 'page' : undefined}>Check a request</a>
         </nav>}
       </div>
     </header>
