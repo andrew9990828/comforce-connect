@@ -186,178 +186,55 @@
   .atlas-metrics { grid-template-columns: 1fr 1fr; gap: .8rem .5rem; }
   .atlas-trend { grid-template-columns: 1fr; }
   .atlas-scope h3 { font-size: 1rem; }
-  .atlas-table > h3, .atlas-table-body { padding-inline: .85rem; }
+  .atlas-table > summary, .atlas-table-body { padding-inline: .85rem; }
 }
 @media (prefers-reduced-motion: reduce) { .atlas-area, .trend-track i { transition: none; } }
 
-/* Readers can scroll through every chapter or jump directly to the interactive map. */
-html .impact-story {
-  max-width: 1280px;
-  padding: clamp(1rem,3vw,2.75rem) clamp(1rem,4vw,3.75rem) clamp(2rem,6vw,5rem);
-}
-.story-cover {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: stretch;
-  overflow: hidden;
-  isolation: isolate;
-  border-radius: 28px;
-  background: var(--surface);
-}
-.story-intro {
-  align-self: center;
-  padding: clamp(2rem,5vw,4.8rem);
-}
-.story-intro h1 {
-  font: 650 clamp(3.2rem,7.2vw,6.8rem)/.96 var(--ui-font);
-  letter-spacing: -.073em;
-}
-.story-intro p, .story-family p {
-  max-width: 36ch;
-  margin-block: 1.25rem;
-  font-size: clamp(1rem,1.5vw,1.25rem);
-  line-height: 1.52;
-}
-.story-intro a, .story-actions a:first-child {
-  display: inline-flex;
-  gap: 1rem;
-  align-items: center;
-  padding: .78rem 1.25rem;
-  border-radius: 999px;
-  background: var(--lake);
-  color: var(--surface);
-  font-weight: 600;
-  text-decoration: none;
-}
-.story-cover .shoreline {
-  min-height: clamp(23rem,42vw,35rem);
-  position: relative;
-  background: radial-gradient(at 30% 30%,var(--sea-light),var(--sea));
-}
-.story-cover .shoreline svg { position: absolute; inset: 0; }
-html .story-reach {
-  display: grid;
-  grid-template-columns: 1fr 1.1fr;
-  align-items: center;
-  gap: 2rem;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  padding: clamp(3.5rem,8vw,7rem) clamp(.3rem,4vw,4rem);
-}
-.story-reach h2, .story-family h2 {
-  font-size: clamp(2.2rem,4.4vw,4.4rem);
-  line-height: 1.03;
-  letter-spacing: -.055em;
-  max-width: 14ch;
-}
-.story-reach p { margin-top: .8rem; color: var(--muted); }
-html .story-reach dl { margin: 0; gap: 1.2rem; max-width: none; }
-html .story-reach dd { font: 620 clamp(2.2rem,4.8vw,4.6rem)/1.1 var(--ui-font); letter-spacing: -.065em; }
-.story-map { scroll-margin-top: 1rem; }
-.story-map .atlas-heading { padding: 1.6rem clamp(1rem,3vw,2.5rem) .4rem; }
-.story-map .atlas-instruction { padding-inline: clamp(1rem,3vw,2.5rem); }
-.story-family {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: center;
-  gap: 2rem;
-  margin-top: clamp(3.5rem,7vw,6rem);
-  padding: clamp(2rem,6vw,5.5rem);
-  background: var(--lake);
-  color: var(--surface);
-  border-radius: 24px;
-}
-.story-family p { margin: 0 0 1.5rem; }
-.story-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; }
-.story-actions a { color: inherit; }
-.story-actions a:first-child { background: var(--surface); color: var(--lake); }
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .story-map, .story-family { animation: story-expand linear both; animation-timeline: view(); animation-range: entry 0% entry 85%; }
-    @keyframes story-expand { from { scale: .965; translate: 0 12px; } to { scale: 1; translate: 0 0; } }
-  }
-}
-@media (max-width: 720px) {
-  .story-cover, html .story-reach, .story-family { grid-template-columns: 1fr; }
-  .story-intro { padding: 2rem 1.5rem; }
-  .story-cover .shoreline { min-height: clamp(10rem,40vw,16rem); }
-  html .story-reach { gap: 1.5rem; }
-  .story-family { gap: 1rem; }
-}
 
+/* Simple community impact page: the map leads, then three equal cards. Claude (Opus 5.5). */
+html .impact-page.impact-simple {
+  max-width: 1180px; margin: 0 auto;
+  padding: clamp(1rem,3vw,2.25rem) clamp(1rem,4vw,2.5rem) clamp(2rem,5vw,4rem);
+  display: grid; gap: clamp(1rem,2.5vw,1.75rem);
+}
+.impact-simple .atlas-board { border-radius: 16px; }
+.impact-cards { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: clamp(.75rem,2vw,1.25rem); }
+.impact-card {
+  display: flex; flex-direction: column; gap: .9rem;
+  padding: clamp(1.1rem,2.2vw,1.6rem); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 16px;
+}
+.impact-card h2 { font-size: 1.2rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.25; color: var(--lake); }
+.impact-card p { color: var(--ink); line-height: 1.5; }
+.impact-stats { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.impact-stats div { display: flex; flex-direction: column; }
+.impact-stats dd { order: 0; margin: 0; font-size: clamp(1.8rem,3vw,2.3rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.1; color: var(--teal); }
+.impact-stats dt { font-size: .9rem; color: var(--muted); }
+.impact-stats a, .impact-source a, .impact-actions a:not(.impact-button) { color: var(--teal); }
+.impact-source { margin-top: auto !important; font-size: .82rem; color: var(--muted) !important; }
+.impact-card-family { background: var(--wash); }
+.impact-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-top: auto; }
+.impact-button { padding: .65rem 1.1rem; min-height: 44px; display: inline-flex; align-items: center; border-radius: 12px; background: var(--teal); color: #fff; font-weight: 700; text-decoration: none; }
+.impact-button:hover { background: var(--lake); }
 
-/* The scrolling field guide has one centered chapter bar at every viewport size. */
-html .impact-page.impact-story {
-  --control-radius: 12px;
-  max-width: 1340px;
-  padding: clamp(.75rem,2vw,2rem);
-}
-.impact-story .story-cover {
-  grid-template-columns: 1fr; border-radius: 18px;
-  background: var(--lake); color: var(--surface);
-}
-.impact-story .story-intro { padding: clamp(2rem,4vw,4rem) 1rem; text-align: center; }
-.story-intro h1 br { display: none; }
-.story-intro p { margin: 1rem auto; }
-.impact-story .story-cover .shoreline { min-height: clamp(7rem,16vw,14rem); }
-.impact-story .story-intro a, .story-actions a, .guide-action, .service-directory a,
-.chapter-index a, .history-link a {
-  display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
-  padding: .65rem 1rem; border: 0; border-radius: var(--control-radius);
-  background: var(--wash); color: var(--ink); text-decoration: none;
-}
-.impact-story .story-actions a:first-child, .impact-story .guide-action { border-radius: var(--control-radius); background:var(--lake); color:var(--surface); }
-.chapter-index {
-  position: sticky; top: 0; z-index: 3; display: flex; align-items: center; justify-content: safe center;
-  gap: .4rem; padding: .5rem; margin-block: .75rem; overflow-x: auto;
-  background: var(--surface); border-radius: 14px; box-shadow: 0 4px 16px var(--shadow);
-}
-.chapter-index a { flex: none; white-space: nowrap; min-height: 44px; font-weight: 540; transition: background-color .24s,color .24s; }
-.chapter-index a[aria-current] {
-  background: var(--lake); color: var(--surface);
-}
-.chapter-index a[aria-current=location] { animation: chapter-arrival .42s cubic-bezier(.2,.7,.3,1); }
-@keyframes chapter-arrival { 0% { transform: scale(.96); } 55% { transform: scale(1.025); } 100% { transform: scale(1); } }
-.impact-story [id] { scroll-margin-top: 5rem; }
-
-@media (max-width: 767px) {
-  .chapter-index { scrollbar-width: none; }
-  .chapter-index::-webkit-scrollbar { display: none; }
-}
-.story-sections { background: var(--surface); border-radius: 18px; overflow: clip; }
-.impact-story .story-sections > section { margin: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; padding: clamp(2rem,5vw,5rem); }
-.story-map { padding: 0 clamp(.4rem,2vw,1.6rem); }
-.impact-story .atlas-board { border-radius: 16px; }
-.impact-story .story-family { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: .5rem; background: var(--wash); color: var(--ink); }
-.story-family h2 { max-width: none; }
-.story-family p { margin: .75rem auto 1.25rem; max-width: 56ch; }
-.story-actions, .service-directory { display:flex; flex-wrap:wrap; justify-content:center; gap:.6rem; }
-.guide-resource { text-align: center; }
-.guide-resource h2 { font-size: clamp(2rem,4vw,3.8rem); letter-spacing: -.055em; line-height: 1.06; }
-.guide-resource > p { margin-block: .85rem 1.4rem; color: var(--muted); }
-.request-steps { max-width: 42rem; padding-left: 1.5rem; margin: 1rem auto; text-align:left; }
-.request-steps li { padding: .7rem 0 .7rem .4rem; }
-.request-steps li::marker { color: var(--teal); font-weight: 700; }
-.request-steps p { margin: .3rem 0; }
-.atlas-table > h3 { margin: 0; color: var(--ink); }
+/* Atlas totals table, shown as a plain section on this page. */
+.atlas-table > summary { font-weight: 600; padding: .8rem 1.3rem; min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--ink); }
+.atlas-table > summary:hover { color: var(--teal); }
 .atlas-table-body ul { display:grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,12rem),1fr)); gap: .45rem; }
 .atlas-table-body li + li { border: 0; }
 .atlas-table-body button { background: var(--wash); border-radius: 10px; padding-inline:.85rem; }
 .atlas-table-body button[aria-pressed=true] { background:var(--lake); color:var(--surface); }
-@media (prefers-reduced-motion: reduce) {
-  .chapter-index a, .chapter-index a[aria-current=location] { animation: none; transition: none; }
+.impact-simple [id] { scroll-margin-top: 5rem; }
+
+/* Wide screens: map on the left, outcomes and the six-month trend beside it. */
+@media (min-width: 1000px) {
+  .impact-simple .atlas-board { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(0,1fr); }
+  .impact-simple .atlas-board > :not(.atlas-map, .atlas-outcomes, .atlas-trend) { grid-column: 1 / -1; }
+  .impact-simple .atlas-map { grid-column: 1; grid-row: span 2; border-right: 1px solid var(--atlas-rule); }
+  .impact-simple .atlas-outcomes { grid-column: 2; align-self: start; }
+  .impact-simple .atlas-trend { grid-column: 2; grid-template-columns: 1fr; align-self: start; }
+  .impact-simple .atlas-metrics { grid-template-columns: 1fr 1fr; }
 }
-
-.story-reach p a { color: var(--teal); text-decoration: underline; text-underline-offset: .17em; }
-
-.source-link-icon { width: .85em; height: .85em; margin-inline-start: .25em; vertical-align: baseline; }
-@media (prefers-reduced-motion: no-preference) {
-  html:has(.impact-story) { scroll-behavior: smooth; }
-}
-
-.source-link-end { white-space: nowrap; }
-@media (max-width: 767px) {
-  .reach-attribution > span { display: block; margin-bottom: .15rem; }
-  .reach-attribution a { text-wrap: balance; }
+@media (max-width: 900px) {
+  .impact-cards { grid-template-columns: 1fr; }
 }

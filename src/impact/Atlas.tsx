@@ -163,7 +163,7 @@ export default function Atlas() {
         <span aria-label={label(m)}>{label(m, true)}</span>
       </li>)}</ol>
     </div>
-    <section className="atlas-table" aria-labelledby="atlas-data-title"><h3 id="atlas-data-title">{t("Neighborhood totals and map sources")}</h3>
+    <details className="atlas-table"><summary>{t("Neighborhood totals and map sources")}</summary>
       <div className="atlas-table-body"><p>{t("Confirmed needs fulfilled in")} {label(period)}{t(". Select a neighborhood to update the atlas.")}</p>
         <ul>{areas.map(name => <li key={name}><button type="button" aria-pressed={selected === name} onClick={() => setSelected(name)}>
           {name === 'Unknown' ? t('Unknown neighborhood') : name}<b>{rows ? formatNumber(counts?.[name] ?? 0) : '—'}</b>
@@ -171,6 +171,6 @@ export default function Atlas() {
         <p>{t("Requests helped counts each request with a confirmed fulfillment once in the selected month. A referral counts when sent. A family check-in counts when recorded as completed. Gaps in the history indicate months with no recorded citywide outcomes.")}</p>
         <p>{t("Neighborhood boundaries from the")} <a href="https://milwaukeemaps.milwaukee.gov/arcgis/rest/services/AGO/neighborhoods/MapServer/0">{t("City of Milwaukee")}</a>{t(". Water features from the 2025 U.S. Census TIGER/Line files for")} <a href="https://www2.census.gov/geo/tiger/TIGER2025/AREAWATER/tl_2025_55079_areawater.zip">Milwaukee</a> {t("and")} <a href="https://www2.census.gov/geo/tiger/TIGER2025/AREAWATER/tl_2025_55089_areawater.zip">Ozaukee</a>{t(' counties.')}</p>
       </div>
-    </section>
+    </details>
   </section>
 }
