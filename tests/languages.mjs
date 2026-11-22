@@ -27,6 +27,7 @@ try {
 
   await visit('/')
   await page.getByRole('link', { name: messages['Request help'][0], exact: true }).first().waitFor()
+  assert.equal(await page.getByRole('link', { name: messages['Check a request'][0], exact: true }).getAttribute('href'), '/status')
   assert.equal(await language().inputValue(), 'es')
   await fit()
   await visit('/request')
@@ -53,6 +54,7 @@ try {
   await page.getByRole('heading', { name: messages['Request received'][1] }).waitFor()
   await fit()
   const reference = await page.locator('.receipt-ref strong').innerText()
+  assert.equal(await page.getByRole('link', { name: messages['Check request status'][1], exact: true }).getAttribute('href'), '/status?ref=' + encodeURIComponent(reference))
   await visit('/team')
   // Long Hmong labels previously pushed the staff action onto a separate line.
   const phone = page.viewportSize()

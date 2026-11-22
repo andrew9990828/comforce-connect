@@ -15,6 +15,7 @@ function supported(value: string | null): Language | undefined {
   if (code && Object.hasOwn(languages, code)) return code as Language
 }
 function initialLanguage(): Language {
+  if (typeof window === 'undefined') return 'en'
   try {
     const saved = supported(localStorage.getItem(storageKey))
     if (saved) return saved
