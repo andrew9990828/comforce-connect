@@ -26,7 +26,7 @@ h1, h2, h3, p { margin-top: 0; }
 .site-header { background: #fffefa; border-bottom: 1px solid var(--line); }
 .site-bar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(max-content, 1fr) auto auto;
   align-items: center;
   gap: .75rem clamp(1rem, 2vw, 2rem);
   max-width: 1280px;

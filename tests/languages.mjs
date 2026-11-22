@@ -120,6 +120,22 @@ try {
   await fit()
   await language().selectOption('en')
   await page.getByRole('heading', { name: 'Neighborhood atlas' }).waitFor()
+  for (const route of ['/request', '/team']) {
+    await visit(route)
+    for (const code of ['en', 'es', 'hmn', 'de', 'pl']) {
+      await language().selectOption(code)
+      for (const width of [1100, 1280]) {
+        await page.setViewportSize({ width, height: phone.height })
+        const separated = await page.locator('.site-bar').evaluate(async header => {
+          await document.fonts.ready
+          const logo = header.querySelector('.brand').getBoundingClientRect()
+          const picker = header.querySelector('.language-select').getBoundingClientRect()
+          return logo.right <= picker.left + 1 || logo.bottom <= picker.top + 1
+        })
+        assert.ok(separated, 'Logo overlaps language picker on ' + route + ' in ' + code + ' at ' + width)
+      }
+    }
+  }
   assert.deepEqual(errors, [])
   console.log('Passed language detection, five-language switching, intake validation, submission, queue, case details, staff sign-in, maps and persistence.')
 } finally {
