@@ -59,26 +59,27 @@ function App() {
     <a className="skip-link" href="#content">{t("Skip to content")}</a>
     <header className={'site-header' + (staff ? ' staff-header' : '')}>
       <div className="site-bar">
-        <a className="brand" href={staff ? queue : route('/')} aria-label={staff ? t('ComForce Connect team home') : t('ComForce Connect home')}>
-          <img className="brand-mark" src={markUrl} alt="" />
-          <span className="brand-text"><span>ComForce <b>Connect</b></span><span className="brand-sub">Community Task Force MKE</span></span>
-        </a>
-        {staff ? <>
-          <span className="staff-wordmark">{t("Team workspace")}</span>
+        <div className="site-identity">
+          <a className="brand" href={staff ? queue : route('/')} aria-label={staff ? t('ComForce Connect team home') : t('ComForce Connect home')}>
+            <img className="brand-mark" src={markUrl} alt="" />
+            <span className="brand-text"><span>ComForce <b>Connect</b></span><span className="brand-sub">Community Task Force MKE</span></span>
+          </a>
+          {staff && <span className="staff-wordmark">{t("Team workspace")}</span>}
+        </div>
+        <LanguageSelect />
+        {staff ?
           <nav className="site-nav" aria-label={t("Team navigation")}>
             <a href={queue} aria-current={path === '/team' ? 'page' : undefined}>{t("Queue")}</a>
             <a href={board} aria-current={path === '/team/board' ? 'page' : undefined}>{t("Community board")}</a>
             <a className="public-crosslink" href={route(isStaffMode() ? '/' : '/#my-workspace')}>{t("View public site")}</a>
             <a className="staff-log" href={log} aria-current={staffIntake ? 'page' : undefined}>{t("Log a request")}</a>
           </nav>
-          <LanguageSelect />
-        </> : <nav className="site-nav" aria-label={t("Public navigation")}>
+        : <nav className="site-nav" aria-label={t("Public navigation")}>
           <a className="nav-cta" href={route('/request')} aria-current={path === '/request' ? 'page' : undefined}>{t("Get help")}</a>
           <a href={route('/status')} aria-current={path === '/status' ? 'page' : undefined}>{t("Check my request")}</a>
           <a href={route('/impact')} aria-current={path === '/impact' ? 'page' : undefined}>{t("How we help")}</a>
           <a href={route('/safety')} aria-current={path === '/safety' ? 'page' : undefined}>{t("Your neighborhood")}</a>
           <a href={route('/help-out')} aria-current={path === '/help-out' ? 'page' : undefined}>{t("Lend a hand")}</a>
-          <LanguageSelect />
           {CommunityAssistant && !isStaffMode() && <Suspense fallback={null}><CommunityAssistant/></Suspense>}
         </nav>}
       </div>

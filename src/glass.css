@@ -8,7 +8,7 @@ html[data-style=glass] {
     0 2px 3px #0a4d2b13, 0 8px 22px -7px #0a4d2b4a;
 }
 html[data-style=glass] .site-header { background: #f5f8f3; border-bottom:1px solid var(--line); color:var(--ink); border:0; }
-html[data-style=glass] .site-bar { min-height:58px; max-width:1200px; }
+html[data-style=glass] .site-bar { min-height:58px; max-width:1360px; }
 html[data-style=glass] .staff-header :is(.brand,.site-nav a,.site-nav .public-crosslink) { color: var(--ink); }
 html[data-style=glass] .brand-mark { background:#fff; }
 html[data-style=glass] :is(.intake-form,.intake-receipt,.team-queue,.team-login,.team-report-map,.story-sections) {
