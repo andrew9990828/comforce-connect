@@ -1,3 +1,4 @@
+import { formatNumber, t } from '../languages/language'
 // Milwaukee neighborhood atlas. Codex (GPT-6) composed the City boundaries with locally simplified Census TIGER/Line water geometry.
 import { useEffect, useRef, useState } from 'react'
 import geography from './milwaukee.json'
@@ -17,7 +18,6 @@ const labels: Record<Area, [number, number, 'start' | 'end']> = {
   'Silver City': [92, 302, 'end'], 'Bay View': [259, 341, 'start'],
 }
 const areas = Object.keys(labels) as Area[]
-const number = new Intl.NumberFormat('en-US')
 
 interface MapProps {
   selected: string
@@ -68,7 +68,7 @@ export default function NeighborhoodMap({ selected, periodLabel, counts, total, 
         })}
         <path d={water.rivers} className="atlas-rivers" />
         {areas.includes(selected as Area) && <path d={geography.areas[selected as Area].d} className="atlas-area-outline" />}
-        <text x="291" y="100" textAnchor="middle" className="atlas-lake-name" transform="rotate(-9 291 100)">Lake Michigan</text>
+        <text x="291" y="100" textAnchor="middle" className="atlas-lake-name" transform="rotate(-9 291 100)">{t("Lake Michigan")}</text>
         {areas.map(name => {
           const {x, y} = geography.areas[name]
           const [tx, ty, anchor] = labels[name]
@@ -82,23 +82,23 @@ export default function NeighborhoodMap({ selected, periodLabel, counts, total, 
           </g>
         })}
         <g className="atlas-scale" transform={`translate(${xMin + 19} 449)`}>
-          <path d="M0 -3v4h48.1v-4" /><text y="-6">2 mi</text>
+          <path d="M0 -3v4h48.1v-4" /><text y="-6">{t("2 mi")}</text>
         </g>
       </svg>
       <div className="atlas-readout">
         <span>{periodLabel}</span>
-        <select aria-label="Neighborhood" value={selected} onChange={event => choose(event.target.value)}>
-          <option value="">Citywide</option>{[...areas, 'Unknown'].map(name =>
-            <option key={name} value={name}>{name === 'Unknown' ? 'Unknown neighborhood' : name}</option>)}
+        <select aria-label={t("Neighborhood")} value={selected} onChange={event => choose(event.target.value)}>
+          <option value="">{t("Citywide")}</option>{[...areas, 'Unknown'].map(name =>
+            <option key={name} value={name}>{name === 'Unknown' ? t('Unknown neighborhood') : name}</option>)}
         </select>
-        <span aria-live="polite">{total === null ? 'Awaiting data' : `${number.format(total)} ${total === 1 ? 'need' : 'needs'} fulfilled`}</span>
+        <span aria-live="polite">{total === null ? t('Awaiting data') : t(total === 1 ? '{count} need fulfilled' : '{count} needs fulfilled', { count: formatNumber(total) })}</span>
       </div>
-      <div className="atlas-north" aria-hidden="true"><span>N</span><i /></div>
+      <div className="atlas-north" aria-hidden="true"><span>{t("N")}</span><i /></div>
     </div>
     <figcaption className="atlas-legend">
-      <strong>Needs fulfilled</strong>
+      <strong>{t("Needs fulfilled")}</strong>
       <ul>{levels.map(level => <li key={level.label}><i style={{ backgroundColor: level.color }} />{level.label}</li>)}
-        <li><i className="atlas-context-swatch" />Outside demo</li></ul>
+        <li><i className="atlas-context-swatch" />{t("Outside demo")}</li></ul>
     </figcaption>
   </figure>
 }
