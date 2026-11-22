@@ -8,7 +8,7 @@ import TeamLogin from './TeamLogin'
 import ResidentPairing from './ResidentPairing'
 import TeamAssistant from '../assistant/TeamAssistant'
 import { clearTeamChats, scopeLabel } from '../assistant/conversation'
-import { actionLabel, dated, isOverdue, nextAction, outcome, partner, serviceLabels, statusLabels, type Action, type Need, type NeedStatus, type Service, type TeamRequest } from './queue'
+import { actionLabel, dated, isOverdue, needsAssignment, nextAction, outcome, partner, serviceLabels, statusLabels, type Action, type Need, type NeedStatus, type Service, type TeamRequest } from './queue'
 import './team.css'
 
 type Attention = 'all' | 'overdue' | 'unassigned'
@@ -122,17 +122,17 @@ function Workspace({ staff }: { staff: boolean }) {
   const now = Date.now()
   const opened = rows.filter(r => r.need.status === 'open')
   const overdue = opened.filter(r => isOverdue(r.need, now))
-  const unassigned = opened.filter(r => !r.need.owner)
+  const unassigned = opened.filter(r => needsAssignment(r.need))
   const owners = [...new Set(rows.flatMap(r => r.need.owner ? [r.need.owner] : []))].sort()
   const partners = [...new Set(rows.flatMap(({ need }) => [...need.referrals.map(ref => ref.partner), ...(need.partner_contact ? [need.partner_contact] : [])]))].sort()
   const query = search.trim().toLowerCase()
   const visible = rows.filter(({ request, need }) =>
     (!service || need.service === service) && (!owner || need.owner === owner) && (status === 'all' || need.status === status) &&
-    (attention !== 'overdue' || isOverdue(need, now)) && (attention !== 'unassigned' || (need.status === 'open' && !need.owner)) &&
+    (attention !== 'overdue' || isOverdue(need, now)) && (attention !== 'unassigned' || (need.status === 'open' && needsAssignment(need))) &&
     (!query || [request.reference, request.neighborhood, request.description, serviceLabels[need.service], need.owner, partner(need)]
       .some(field => field?.toLowerCase().includes(query))))
     .sort((a, b) => Number(isOverdue(b.need, now)) - Number(isOverdue(a.need, now))
-      || Number(!b.need.owner) - Number(!a.need.owner)
+      || Number(needsAssignment(b.need)) - Number(needsAssignment(a.need))
       || ((a.need.follow_up ? Date.parse(a.need.follow_up) : Infinity) - (b.need.follow_up ? Date.parse(b.need.follow_up) : Infinity))
       || Date.parse(b.request.created_at) - Date.parse(a.request.created_at))
   const currentRequest = requests?.find(r => r.reference === selected.reference)
@@ -184,7 +184,8 @@ function Workspace({ staff }: { staff: boolean }) {
                 <strong>{serviceLabels[need.service]}</strong><small>{request.reference} · {request.neighborhood}</small>
               </button>
               <div className="team-row-owner"><span className="team-mobile-label">Owner</span>
-                <span className={!need.owner && need.status === 'open' ? 'team-flag' : undefined}>{need.owner || 'Unassigned'}</span></div>
+                <span className={needsAssignment(need) && need.status === 'open' ? 'team-flag' : undefined}>
+                  {needsAssignment(need) && need.owner ? `${need.owner} · link account` : need.owner || 'Unassigned'}</span></div>
               <div className="team-row-due"><span className="team-mobile-label">Deadline</span>
                 {isOverdue(need, now) && <span className="team-flag">Overdue</span>}
                 {need.status !== 'open' ? statusLabels[need.status] : need.follow_up ? dated(need.follow_up) : 'Unscheduled'}</div>
@@ -211,7 +212,7 @@ function Workspace({ staff }: { staff: boolean }) {
         if (request && need) openCase(request, need, null)
       }}/>}
     {!!currentRequest && !!currentNeed && membership && <CaseDetail request={currentRequest} need={currentNeed} initial={initialAction} token={membership.token}
-      owners={owners} partners={partners} canAssign={membership.canAssign} staffMembers={membership.staff} demo={!staff}
+      owners={owners} partners={partners} canAssign={membership.canAssign} staffMembers={membership.staff} demo={!staff} legacyApi={membership.legacyApi}
       onSelect={need => openCase(currentRequest, need, null)} onSaved={refresh} onClose={closeCase}/>}
   </main>
 }
