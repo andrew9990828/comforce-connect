@@ -13,7 +13,7 @@ export default function Safety() {
         <h1><em>{t('Neighborhood context')}</em></h1>
       </div>
       <div className="safety-intro">
-        <p>{t("Explore reported MPD incidents in the six neighborhoods served by this demonstration. The animation uses aggregate public records and never displays individual addresses.")}</p>
+        <p>{t("Explore reported MPD incidents in the six neighborhoods served by this demonstration. The animation uses aggregate public records and never displays individual addresses.")}</p>\n        <p><strong>If someone is in immediate danger, call 911.</strong></p>
         <p className="safety-period"><strong>{t("Comparison period")}</strong><span>{t("January 1–October 31 · 2025 and 2026")}</span></p>
       </div>
     </header>
