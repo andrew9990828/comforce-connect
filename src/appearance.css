@@ -1,6 +1,6 @@
 /* Forest green surfaces from the Community Task Force MKE logo (matches the ComForce Connect app). */
 :root {
-  --ui-font: "DM Sans Variable", sans-serif;
+  --ui-font: "Inter Variable", "Segoe UI", system-ui, sans-serif;
   --ground: #eef5ef;
   --accent: #0a4d2b;
   --surface: #ffffff;
@@ -28,6 +28,7 @@
 }
 .site-header { background: color-mix(in srgb,var(--surface) 92%,transparent); }
 .site-bar { min-height: 66px; max-width: 1360px; }
+.site-header { border-bottom: 1px solid var(--line); }
 .brand-mark { width:38px; height:38px; padding:4px 6px; border-radius:11px; background:#fff; object-fit:contain; flex:none; box-shadow:inset 0 0 0 1px var(--line); }
 .brand { color:var(--lake); }
 .brand b { color:var(--teal); }
@@ -45,21 +46,12 @@
 .site-nav a[aria-current] { background:var(--wash); }
 .staff-header {background:var(--lake);}
 .staff-header .site-nav a[aria-current],.staff-header .site-nav .staff-log { background:var(--wash); color:var(--lake); }
-html .impact-page {max-width:960px;--atlas-paper:var(--surface);--atlas-type:var(--lake);--atlas-rule:var(--line);--atlas-serif:inherit;padding-top:clamp(1rem,2.4vw,2.2rem);}
-html .impact-reach,html .impact-program,html .impact-history,html .atlas-board,html .intake-form,html .intake-receipt,html .intake-aside,html .team-queue {background:var(--surface);border:1px solid var(--line);border-radius:var(--curve);box-shadow:0 6px 25px var(--shadow);}
-html .impact-reach,html .impact-program,html .impact-history {padding:clamp(1.2rem,2.5vw,2.4rem);}
-html .impact-reach {grid-area:reach;margin:0;}
-html .impact-reach dl {margin-top:1rem;}
-html .impact-reach dd,html .impact-history dd:not(.history-link) {font-family:inherit;font-weight:640;}
-html .impact-reach dd a {text-decoration:none;}
-html .impact-reach dd a:hover {text-decoration:underline;}
-html .impact-program,html .intake-aside {background:var(--wash);color:var(--lake);}
-html .impact-program h2,html .impact-history h2,html .atlas-heading h2 {font-family:inherit;font-weight:630;}
-html .impact-program p a {color:var(--teal);}
-html .atlas-heading {padding-top:1.35rem;}
-html .atlas-month,html .atlas-readout {border-radius:12px;}
-html .atlas-board .atlas-heading .impact-kicker {color:var(--surface);opacity:.8;}
-html .impact-history {margin-top:1.25rem;}
+/* One sans family everywhere: the live atlas and safety pages keep their layout but drop the serif. */
+html .impact-page { --atlas-serif: var(--ui-font); --atlas-paper: var(--surface); }
+html .safety-page, html .safety-lead, html [class*="safety"] { --safety-serif: var(--ui-font); }
+html .impact-page :is(h1, h2, dd), html .safety-page :is(h1, h2), html .help-page h1, html .atlas-month button { font-family: var(--ui-font); letter-spacing: -.03em; }
+html .impact-lead h1 { font-weight: 700; }
+html .impact-lead h1 em { font-style: normal; color: var(--teal); }
 html .intake-page h1 {font-size:clamp(2.6rem,5vw,4.6rem);line-height:1.02;font-family:inherit;font-weight:650;}
 html .intake-block > :is(input,textarea,select),html .service-option,html .team-page :is(input,select),html .team-dialog :is(input,textarea,select) {border-radius:12px;}
 html .service-option:has(:checked) {background:var(--teal);border-color:var(--teal);}
@@ -113,7 +105,7 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 }
 .public-chat.floating .chat-trigger {
   width: 52px; height: 52px; touch-action: pan-y;
-  border-radius: 16px; box-shadow: var(--lens-edge);
+  border-radius: 16px; box-shadow: 0 6px 18px -6px #0a4d2b55;
 }
 .public-chat .chat-dismiss {
   position: absolute; top: -13px; right: -9px;

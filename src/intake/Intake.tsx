@@ -223,7 +223,7 @@ export default function Intake() {
 
   return <main className={'intake-page' + (guided ? ' intake-guided' : '')}>
     <div className="intake-intro">
-      <h1>{staffEntry ? t('Log a request') : t('Get help')}</h1>
+      <h1>{staffEntry ? t('Log a request') : t('Request help')}</h1>
       {staffEntry
         ? <p className="intake-followup"><strong>{preview ? t('After you finish, you can preview the team queue.') : t('After you save, the case opens in your queue with all its needs together.')}</strong>
           {' '}{t('The team can arrange direct help for one need and refer another to a partner.')}</p>
@@ -232,7 +232,7 @@ export default function Intake() {
           <div className="step-bar" aria-hidden="true"><span style={{ width: ((step + 1) / steps.length * 100) + '%' }}/></div>
         </div>}
     </div>
-    <form ref={form} className="intake-form" onSubmit={submit} noValidate aria-label={staffEntry ? t('Log a request') : t('Get help')} aria-busy={saving}>
+    <form ref={form} className="intake-form" onSubmit={submit} noValidate aria-label={staffEntry ? t('Log a request') : t('Request help')} aria-busy={saving}>
       <fieldset disabled={saving || retryRequired} className="intake-fields">
         {staffEntry && <div className="intake-block"><label htmlFor="source">{t("How did the request come in?")}</label>
           <select id="source" value={source || 'call'} onChange={e => setSource(e.target.value)}>
