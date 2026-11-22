@@ -1,0 +1,148 @@
+-- Optional ranked contact for resident and staff intake. Codex (GPT-6) extended the scoped submission and queue.
+-- Ordered after the queue-visibility migration so team_queue keeps its role-scoped narratives. Claude (Opus 5.5) rebased it onto main.
+alter table comforce.requests
+  add column if not exists second_method text,
+  add column if not exists second_contact text,
+  drop constraint if exists valid_second_contact,
+  add constraint valid_second_contact check (
+    (second_method is null and second_contact is null) or
+    (second_method is not null and second_contact is not null and second_method <> contact_method
+      and second_method in ('phone','text','email')
+      and case when second_method = 'email' then
+        length(second_contact) <= 254 and second_contact ~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'
+      else length(second_contact) <= 35 and second_contact ~ '^[0-9+(). -]+$'
+        and length(regexp_replace(second_contact,'[^0-9]','','g')) between 7 and 15
+      end)
+  );
+
+drop function if exists public.submit_request(uuid,text[],text,text,text,text,text,text,jsonb);
+drop function if exists public.submit_request(uuid,text[],text,text,text,text,text,text,jsonb,text,text);
+
+create function public.submit_request(
+  p_key uuid, p_services text[], p_description text, p_neighborhood text,
+  p_contact_method text, p_contact text, p_source text, p_token text default null, p_family jsonb default null,
+  p_second_method text default null, p_second_contact text default null
+) returns text language plpgsql security definer set search_path = '' as $$
+declare
+  workspace uuid := comforce.resolve_workspace(p_token,p_source in ('call','text'));
+  receipt comforce.requests;
+  family jsonb;
+  actor_uid uuid;
+  actor_email text;
+  actor_name text;
+  actor_role text;
+begin
+  if workspace is null and comforce.is_staff() then
+    select user_id,email,display_name,role into actor_uid,actor_email,actor_name,actor_role
+    from comforce.current_staff();
+  end if;
+  if cardinality(p_services) is null or cardinality(p_services) not between 1 and 6
+     or cardinality(p_services) <> (select count(distinct value) from unnest(p_services) value)
+     or not (p_services <@ array['food','transportation','shelter','youth','other','family_support']) then
+    raise exception using errcode = '22023', message = 'Choose one or more distinct services.';
+  end if;
+  if 'family_support' = any(p_services) then
+    if (jsonb_typeof(p_family) = 'object' and jsonb_typeof(p_family->'support') = 'string'
+        and jsonb_typeof(p_family->'safe_contact') = 'string'
+        and length(btrim(p_family->>'support')) between 1 and 500
+        and length(btrim(p_family->>'safe_contact')) between 1 and 300
+        and coalesce(jsonb_typeof(jsonb_strip_nulls(p_family)->'agency'),'string')='string'
+        and coalesce(jsonb_typeof(jsonb_strip_nulls(p_family)->'agency_reference'),'string')='string'
+        and length(coalesce(p_family->>'agency','')) <= 120
+        and length(coalesce(p_family->>'agency_reference','')) <= 80) is not true then
+      raise exception using errcode = '22023', message = 'Describe the requested family support and safe follow-up.';
+    end if;
+    family := jsonb_strip_nulls(jsonb_build_object('support',btrim(p_family->>'support'),
+      'safe_contact',btrim(p_family->>'safe_contact'),'agency',nullif(btrim(p_family->>'agency'),''),
+      'agency_reference',nullif(btrim(p_family->>'agency_reference'),'')));
+  elsif p_family is not null then
+    raise exception using errcode = '22023', message = 'Select family support before adding family contact instructions.';
+  end if;
+  insert into comforce.requests(workspace_id,submission_key,description,neighborhood,contact_method,contact,source,family_support,second_method,second_contact,submitted_by)
+  values(workspace,p_key,btrim(p_description),p_neighborhood,p_contact_method,btrim(p_contact),p_source,family,p_second_method,btrim(p_second_contact),
+    case when workspace is null then actor_uid end)
+  on conflict (workspace_id,submission_key) do nothing returning * into receipt;
+  if found then
+    insert into comforce.needs(request_id,service,assigned_staff_id,owner)
+    select receipt.id,value,
+      case when workspace is null and actor_role='caseworker' then actor_uid end,
+      case when workspace is null and actor_role='caseworker' then actor_name end
+    from unnest(p_services) value;
+    if actor_uid is not null then
+      if actor_role='caseworker' then
+        insert into comforce.history(need_id,action,detail,operation_key,actor_uid,actor_name,actor_role)
+        select n.id,'assign',actor_name,p_key,actor_uid,actor_name,actor_role
+        from comforce.needs n where n.request_id=receipt.id;
+        insert into comforce.audit_log(actor_uid,actor_email,actor_role,action,request_id,need_id,detail)
+        select actor_uid,actor_email,actor_role,'assign',receipt.id,n.id,
+          jsonb_build_object('detail',actor_name,'assignee',actor_uid,'automatic',true)
+        from comforce.needs n where n.request_id=receipt.id;
+      end if;
+      insert into comforce.audit_log(actor_uid,actor_email,actor_role,action,request_id,detail)
+      values(actor_uid,actor_email,actor_role,'request_submit',receipt.id,
+        jsonb_build_object('source',p_source,'services',to_jsonb(p_services)));
+    end if;
+  else
+    select * into strict receipt from comforce.requests
+    where workspace_id is not distinct from workspace and submission_key=p_key;
+    if (receipt.description,receipt.neighborhood,receipt.contact_method,receipt.contact,receipt.source,receipt.family_support,receipt.second_method,receipt.second_contact)
+       is distinct from (btrim(p_description),p_neighborhood,p_contact_method,btrim(p_contact),p_source,family,p_second_method,btrim(p_second_contact))
+       or exists (select service from comforce.needs where request_id = receipt.id except select unnest(p_services))
+       or exists (select unnest(p_services) except select service from comforce.needs where request_id = receipt.id) then
+      raise exception using errcode = '22023', message = 'This submission key already has a different request.';
+    end if;
+  end if;
+  return receipt.reference;
+end $$;
+
+create or replace function public.team_queue(p_token text default null) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  workspace uuid := comforce.resolve_workspace(p_token,true);
+  actor_uid uuid;
+  actor_role text;
+begin
+  if workspace is null then
+    select user_id,role into actor_uid,actor_role from comforce.current_staff();
+    if not found then raise insufficient_privilege using message='Verified staff access is required.'; end if;
+  end if;
+  return (
+    with template_requests as materialized (
+      select r.id, comforce.copy_id(workspace,r.id) as copy_id from comforce.requests r
+      where workspace is not null and r.workspace_id=comforce.template_id()
+    ), template_checkins as materialized (
+      select comforce.copy_id(workspace,n.id) as need_id,h.operation_key
+      from template_requests tr join comforce.needs n on n.request_id=tr.id
+      join comforce.history h on h.need_id=n.id and h.action='check_in' and h.operation_key is not null
+    )
+    select coalesce(jsonb_agg(to_jsonb(c) order by c.created_at desc,c.reference desc),'[]')
+    from (
+      select r.id,r.reference,
+        case when r.family_support is null or access.family_visible then r.description else '' end as description,
+        r.neighborhood,r.contact_method,r.contact,r.source,r.created_at,r.second_method,r.second_contact,
+        case when access.family_visible then r.family_support end as family_support,
+        r.id in (select tr.copy_id from template_requests tr) as demo_fixture,
+        (select jsonb_agg(to_jsonb(n) - 'request_id' || jsonb_build_object(
+          'assignment_required',case when workspace is null then n.assigned_staff_id is null else n.owner is null end,
+          'referrals', (select coalesce(jsonb_agg(to_jsonb(f) - 'need_id' order by f.sent_at desc,f.id),'[]')
+                        from comforce.referrals f where f.need_id=n.id),
+          'history', (select coalesce(jsonb_agg(to_jsonb(h) - 'need_id' - 'id' - 'operation_key' - 'actor_uid'
+              || jsonb_build_object('demo_fixture', h.action='check_in' and h.operation_key is not null
+                and (h.need_id,h.operation_key) in (select seed.need_id,seed.operation_key from template_checkins seed))
+              order by h.at desc,h.id desc),'[]') from comforce.history h where h.need_id=n.id)
+        ) order by n.service) from comforce.needs n where n.request_id=r.id
+          and (workspace is not null or actor_role='administrator' or n.assigned_staff_id=actor_uid)) as needs
+      from comforce.requests r
+      cross join lateral (select workspace is not null or actor_role='administrator' or exists (
+        select 1 from comforce.needs n where n.request_id=r.id and n.service='family_support'
+          and n.assigned_staff_id=actor_uid
+      ) as family_visible) access
+      where r.workspace_id is not distinct from workspace
+        and (workspace is not null or actor_role='administrator' or exists (
+          select 1 from comforce.needs visible where visible.request_id=r.id and visible.assigned_staff_id=actor_uid
+        ))
+    ) c);
+end $$;
+
+revoke all on function public.submit_request(uuid,text[],text,text,text,text,text,text,jsonb,text,text) from public,anon,authenticated;
+grant execute on function public.submit_request(uuid,text[],text,text,text,text,text,text,jsonb,text,text) to anon,authenticated;

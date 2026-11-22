@@ -2,6 +2,8 @@ import { formatNumber, t, monthLabel as label } from '../languages/language'
 // Interactive demo atlas. Codex (GPT-6) implemented scoped aggregate reads, month comparisons, map selection and trend controls.
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
+import { preview } from '../preview/location'
+import { sampleImpact } from '../preview/samples'
 import { ExpiredPairing, pairingRejected, impactToken } from '../workspace'
 import ResidentRepair from '../ResidentRepair'
 import { neighborhoods } from './neighborhoods'
@@ -41,11 +43,15 @@ function comparison(month: string, current: string, count: number | null, prior:
 export default function Atlas() {
   const [rows, setRows] = useState<ImpactRow[] | null>(null)
   const [month, setMonth] = useState('')
-  const [selected, setSelected] = useState('')
+  const [selected, setSelected] = useState(() => {
+    const name = new URLSearchParams(location.search).get('area')
+    return name && neighborhoods.includes(name) ? name : ''
+  })
   const [expired, setExpired] = useState(false)
   const [failed, setFailed] = useState(false)
   const [retry, setRetry] = useState(0)
   useEffect(() => {
+    if (preview) { setRows(sampleImpact); setMonth(chosen => chosen || sampleImpact.at(-1)!.month); return }
     let disposed = false
     let pending: AbortController | null = null
     async function refresh() {
@@ -116,7 +122,6 @@ export default function Atlas() {
   const areas = [...neighborhoods, 'Unknown']
   return <section className="atlas-board" aria-labelledby="atlas-title">
     <header className="atlas-heading"><div>
-      <p className="impact-kicker">{t("Interactive demo activity")}</p>
       <h2 id="atlas-title">{t("Neighborhood atlas")}</h2>
     </div>
       <div className="atlas-month">
@@ -133,7 +138,8 @@ export default function Atlas() {
       {rows ? t('Refresh failed. The last available totals are shown.') : t('Demo outcomes are unavailable. Check your connection.')}
       <button type="button" onClick={() => setRetry(value => value + 1)}>{t("Retry")}</button>
     </div>}
-    <NeighborhoodMap selected={selected} periodLabel={label(period)} counts={counts} total={rows ? totals.needs_fulfilled : null} choose={setSelected} />
+    <NeighborhoodMap selected={selected} periodLabel={label(period)} counts={counts} legendLabel={t("Needs fulfilled")}
+      readout={rows ? t(totals.needs_fulfilled === 1 ? '{count} need fulfilled' : '{count} needs fulfilled', { count: formatNumber(totals.needs_fulfilled) }) : t('Awaiting data')} choose={setSelected} />
     <div className="atlas-outcomes">
       <div className="atlas-scope">
         <h3>{selected ? t('{area} outcomes', { area: scope }) : t('Citywide outcomes')}</h3>
@@ -146,7 +152,7 @@ export default function Atlas() {
       {rows && !hasActivity && <p className="atlas-empty" role="status">{t("No recorded outcomes in this selection. Choose another month or neighborhood.")}</p>}
     </div>
     <div className="atlas-trend">
-      <div><p className="impact-kicker">{t("Six-month history")}</p><h3>{t("Needs fulfilled")}</h3>
+      <div><h3>{t("Needs fulfilled over six months")}</h3>
         <p>{scope} · {label(series[0].m, true)}–{label(period)}</p>
         <p className="atlas-comparison">{rows ? comparison(period, current, series[5].value, series[4].value) : t('Awaiting demo data.')}</p>
         {rows && series.some(point => point.value === null) && <p className="atlas-gap">{t("— No citywide outcomes recorded.")}</p>}

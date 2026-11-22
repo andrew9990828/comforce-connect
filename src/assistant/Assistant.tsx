@@ -43,10 +43,11 @@ interface Props {
   // Where the conversation is kept. The team assistant passes one key per identity and workspace.
   storageKey?: string
   hidden?: boolean
+  renderLauncher?: (open: boolean, toggle: (open: boolean) => void) => ReactNode
   renderAction: (action: StoredAction, update: (patch: Partial<StoredAction>) => void) => ReactNode
 }
 
-export default function Assistant({ name, title, launcher, greeting, notice, suggestions, token, storageKey = `comforce.assistant.${name}.v1`, hidden, renderAction }: Props) {
+export default function Assistant({ name, title, launcher, greeting, notice, suggestions, token, storageKey = `comforce.assistant.${name}.v1`, hidden, renderLauncher, renderAction }: Props) {
   const language = useLanguage()
   const [initial] = useState(() => load(storageKey))
   const [state, setState] = useState<Stored>(initial.state)
@@ -104,7 +105,7 @@ export default function Assistant({ name, title, launcher, greeting, notice, sug
   }
 
   if (hidden) return null
-  return <div className={`assistant assistant-${name}`}>
+  return <><div className={`assistant assistant-${name}`}>
     {state.open && <section className="assistant-panel" id={panelId} aria-label={t(title)}>
       <header className="assistant-header">
         <h2>{t(title)}</h2>
@@ -137,9 +138,9 @@ export default function Assistant({ name, title, launcher, greeting, notice, sug
       </form>
       <p className="assistant-notice">{t(notice)}</p>
     </section>}
-    <button type="button" className="assistant-launcher" aria-expanded={state.open} aria-controls={state.open ? panelId : undefined}
+    {!renderLauncher && <button type="button" className="assistant-launcher" aria-expanded={state.open} aria-controls={state.open ? panelId : undefined}
       onClick={() => toggle(!state.open)}>
       <span aria-hidden="true" className="assistant-icon" />{t(state.open ? 'Close chat' : launcher)}
-    </button>
-  </div>
+    </button>}
+  </div>{renderLauncher?.(state.open, toggle)}</>
 }

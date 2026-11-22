@@ -1,5 +1,6 @@
 // Resident request status page. Contributor: asherjaenchen. AI assistance: Claude Opus 5.5 built the lookup form and tracker.
 import { useRef, useState, type FormEvent } from 'react'
+import { route } from '../preview/location'
 import { supabase } from '../supabase'
 import ResidentRepair from '../ResidentRepair'
 import { chicagoDate, t } from '../languages/language'
@@ -107,7 +108,7 @@ export default function Status() {
       <aside className="intake-aside"><h2>{t('In danger right now?')}</h2>
         <p>{t('Call 911. For a mental health crisis, call or text 988.')}</p>
         <p>{t('This page shows progress only. Your notes and contact details are never shown here.')}</p>
-        <p><a href="/request">{t('Make a new request')}</a></p>
+        <p><a href={route('/request')}>{t('Make a new request')}</a></p>
       </aside>
     </div>
   </main>

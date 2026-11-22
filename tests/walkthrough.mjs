@@ -64,7 +64,7 @@ async function inspect(page, name) {
   await page.setViewportSize(original)
 }
 const area = 'Riverwest'
-const familyLabel = 'Missing person / family support'
+const familyLabel = 'Someone is missing'
 const metrics = ['requests_helped', 'needs_fulfilled', 'referrals_made', 'food_fulfilled', 'family_followups']
 const fields = [...metrics, 'month', 'neighborhood'].sort()
 const chicagoMonth = new Intl.DateTimeFormat('en-CA', {
@@ -91,19 +91,25 @@ async function scope(page, month, neighborhood) {
   await page.getByRole('combobox', { name: 'Reporting month', exact: true }).selectOption(month)
   await page.getByRole('combobox', { name: 'Neighborhood', exact: true }).selectOption(neighborhood)
 }
+// Residents answer one step at a time; staff intake shows every field, so there is no Next button to press.
 async function details(page, text, family = false) {
-  await page.getByRole('textbox', { name: family ? 'What support would help your family?' : 'Description', exact: true }).fill(text)
-  if (family) await page.getByLabel('How can staff follow up safely?').fill('Text before calling about this fictional case.')
-  await page.getByLabel('Neighborhood', { exact: true }).selectOption(area)
-  await page.getByLabel('Email', { exact: true }).check()
-  assert.equal(await page.getByLabel('Phone number', { exact: true }).count(), 0)
-  await page.getByLabel('Email address', { exact: true }).fill('demo@example.invalid')
+  const next = page.getByRole('button', { name: 'Next →' })
+  const step = async () => { if (await next.isVisible()) await next.click() }
+  await step()
+  await page.getByRole('textbox', { name: family ? 'What would help your family right now?' : 'What do you need help with?', exact: true }).fill(text)
+  if (family) await page.getByLabel('When and how is it safe to reach you?').fill('Text before calling about this fictional case.')
+  await step()
+  await page.getByLabel('Which neighborhood are you in?', { exact: true }).selectOption(area)
+  await step()
+  await page.getByRole('radio', { name: 'Email me' }).check()
+  assert.equal(await page.getByLabel('Your phone number', { exact: true }).count(), 0)
+  await page.getByLabel('Your email', { exact: true }).fill('demo@example.invalid')
 }
 async function submit(web, desk, description, services) {
   await desk.getByRole('searchbox', { name: 'Search' }).fill(description)
   await desk.getByRole('heading', { name: 'No matching needs' }).waitFor()
   const committed = reply(web, 'submit_request')
-  await web.getByRole('button', { name: 'Submit request' }).click()
+  await web.getByRole('button', { name: 'Send my request' }).click()
   const saved = await committed
   const start = performance.now()
   const reference = await read(saved, 'Submit')
@@ -111,7 +117,7 @@ async function submit(web, desk, description, services) {
   const lag = Math.round(performance.now() - start)
   assert.ok(lag <= 5000, 'Queue took ' + lag + ' ms to receive intake.')
   assert.equal(await desk.locator('.team-row').count(), services.length)
-  await web.getByRole('heading', { name: 'Request received' }).waitFor()
+  await web.getByRole('heading', { name: 'We got your request!' }).waitFor()
   await web.getByText(reference, { exact: true }).waitFor()
   for (const service of services) await web.locator('.receipt-needs').getByText(service, { exact: true }).waitFor()
   assert.equal(await web.getByRole('navigation', { name: 'Team navigation' }).count(), 0)
@@ -196,6 +202,8 @@ async function pairedDemo() {
   await desk.getByRole('button', { name: 'Pair a resident device' }).click()
   await inspect(desk, 'queue')
   await web.goto(app + '/')
+  assert.equal(await web.getByRole('combobox', { name: 'Reporting month' }).count(), 0)
+  await web.getByRole('link', { name: 'How we help' }).click()
   const aggregate = reply(web, 'public_impact')
   await web.reload()
   const data = await aggregate
@@ -227,20 +235,20 @@ async function pairedDemo() {
   await web.keyboard.press('Tab')
   assert.equal(await web.evaluate(() => document.activeElement?.textContent), 'Skip to content')
   await web.keyboard.press('Enter')
-  await web.getByRole('button', { name: 'Submit request' }).click()
-  await web.getByText('Choose at least one service.', { exact: true }).waitFor()
+  await web.getByRole('button', { name: 'Next →' }).click()
+  await web.getByText('Pick at least one thing you need.', { exact: true }).waitFor()
   await web.getByText('Food', { exact: true }).first().tap()
-  await web.getByRole('checkbox', { name: 'Transportation', exact: true }).check()
+  await web.getByRole('checkbox', { name: 'A ride', exact: true }).check()
   const stamp = randomUUID().slice(0, 8)
   const groceries = 'Fictional groceries and ride ' + stamp
   await details(web, groceries)
   await web.route('**/rest/v1/rpc/submit_request', r => r.fulfill({ status: 503, contentType: 'application/json', body: '{"message":"Offline fixture"}' }), { times: 1 })
-  await web.getByRole('button', { name: 'Submit request' }).click()
+  await web.getByRole('button', { name: 'Send my request' }).click()
   await web.getByRole('alert').waitFor()
-  assert.equal(await web.getByLabel('Description', { exact: true }).inputValue(), groceries)
-  assert.ok(await web.getByRole('checkbox', { name: 'Food', exact: true }).isChecked())
-  const groceriesRef = await submit(web, desk, groceries, ['Food', 'Transportation'])
-  await web.getByRole('link', { name: 'View community impact' }).click()
+  assert.equal(await web.getByLabel('What do you need help with?', { exact: true }).inputValue(), groceries)
+  assert.ok(await web.getByRole('checkbox', { name: 'Food', exact: true, includeHidden: true }).isChecked())
+  const groceriesRef = await submit(web, desk, groceries, ['Food', 'A ride'])
+  await web.getByRole('link', { name: 'See how we help' }).click()
   await scope(web, current, area)
   await desk.locator('[data-service="food"] .team-need-link').click()
   const dialog = desk.getByRole('dialog')
@@ -292,14 +300,16 @@ async function pairedDemo() {
   await shown(web, foodTotals)
   console.log('Groceries delivered once, ride referred, public filter retained and live totals updated.')
   await web.getByRole('link', { name: 'Request family support', exact: true }).tap()
-  assert.ok(await web.getByRole('checkbox', { name: familyLabel, exact: true }).isChecked())
-  await web.getByRole('checkbox', { name: 'Transportation', exact: true }).check()
+  assert.ok(await web.getByRole('checkbox', { name: familyLabel, exact: true, includeHidden: true }).isChecked())
+  // The family link skips straight to step 2, so go back to add a second need.
+  await web.getByRole('button', { name: '← Back' }).click()
+  await web.getByRole('checkbox', { name: 'A ride', exact: true }).check()
   const familyNote = 'Fictional family callback and ride ' + stamp
   await details(web, familyNote, true)
   await inspect(web, 'intake')
-  const familyRef = await submit(web, desk, familyNote, [familyLabel, 'Transportation'])
+  const familyRef = await submit(web, desk, familyNote, [familyLabel, 'A ride'])
   await inspect(web, 'confirmation')
-  await web.getByRole('link', { name: 'View community impact' }).click()
+  await web.getByRole('link', { name: 'See how we help' }).click()
   await scope(web, current, area)
   const familyRow = desk.locator('[data-service="family_support"]')
   await familyRow.getByRole('button', { name: 'Assign a worker', exact: true }).click()

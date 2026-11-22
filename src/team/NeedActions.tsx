@@ -2,6 +2,7 @@ import { firstFieldError } from '../languages/formValidation'
 import { t } from '../languages/language'
 // Case action editor. Codex (GPT-6) implemented direct queue actions and retry-safe follow-up outcomes.
 import { useRef, useState, type FormEvent } from 'react'
+import { preview } from '../preview/location'
 import { supabase } from '../supabase'
 import type { StaffMember } from '../workspace'
 import { actionLabel, dated, nextAction, type Action, type Need } from './queue'
@@ -75,6 +76,7 @@ export default function NeedActions({ need, token, initial, owners, partners, ca
       params.p_source = source.trim()
     }
     if ((action === 'decline' || action === 'fulfill') && attempt) params.p_referral = attempt
+    if (preview) { setNotice('This design preview uses read-only sample cases.'); return }
     saving.current = true
     setPending(true)
     setError('')

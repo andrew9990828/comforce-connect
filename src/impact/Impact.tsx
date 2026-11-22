@@ -1,46 +1,41 @@
+// Community impact: the neighborhood map first, then three short cards on reach, family support and city history.
+// Codex (GPT-6) built the atlas and sourced facts; Claude (Opus 5.5) simplified the page around the map.
 import { formatNumber, t } from '../languages/language'
-// Public landing page. Codex (GPT-6) designed the atlas introduction, program entry and attributed historical context.
+import { route } from '../preview/location'
 import Atlas from './Atlas'
 import { familyProgram, history, reach } from './publishedFacts'
 import './impact.css'
 
 export default function Impact() {
-  return <main className="impact-page">
-    <div className="impact-spread">
-      <header className="impact-lead">
-        <p className="impact-location">Milwaukee, Wisconsin</p>
-        <h1>{t("Community")} <em>{t("impact")}</em></h1>
-        <p className="impact-intro-copy">{t("Community Task Force MKE connects Milwaukee residents with food and rides, and coordinates")} <a href="#family-program">{t("support for families")}</a> {t("when a loved one goes missing.")}</p>
-        <a className="impact-cta" href="/request">{t("Request help")}</a>
-        <div className="impact-reach">
-          <p className="impact-source">{t("Reported by ComForce MKE")} · {t(reach[0].period)}</p>
-          <dl>{reach.map(fact => {
-            const value = formatNumber(fact.minimum) + '+'
-            return <div key={fact.unit}>
-              <dt>{t(fact.unit)}</dt>
-              <dd><a href={fact.url} aria-label={t('Source for {value} {unit}, ComForce MKE', { value, unit: t(fact.unit) })}>{value}</a></dd>
-            </div>
-          })}</dl>
+  return <main className="impact-page impact-simple">
+    <h1 className="impact-sr-only">{t("How we help")}</h1>
+    <div id="neighborhoods" className="impact-map"><Atlas/></div>
+
+    <div className="impact-cards">
+      <section className="impact-card" aria-labelledby="reach-title">
+        <h2 id="reach-title">{t("People behind the work")}</h2>
+        <dl className="impact-stats">{reach.map(fact => <div key={fact.unit}>
+          <dd>{formatNumber(fact.minimum)}+</dd><dt>{t(fact.unit)}</dt>
+        </div>)}</dl>
+        <p className="impact-source">{t("Reported by")} <a href={reach[0].url}>Community Task Force MKE</a> · {t(reach[0].period)}</p>
+      </section>
+
+      <section className="impact-card impact-card-family" aria-labelledby="family-title">
+        <h2 id="family-title">{t(familyProgram.name)}</h2>
+        <p>{t(familyProgram.description)}</p>
+        <div className="impact-actions">
+          <a className="impact-button" href={route('/request?service=family_support')}>{t("Request family support")}</a>
+          <a href={familyProgram.url}>{t("Program details")}</a>
         </div>
-      </header>
-      <Atlas />
-      <section className="impact-program" aria-labelledby="family-program">
-        <p className="impact-kicker">{t("Family support")}</p>
-        <h2 id="family-program">{t(familyProgram.name)}</h2>
-        <p>{t(familyProgram.description)} <a href={familyProgram.url}>{t("Program details")}</a></p>
-        <a className="impact-program-link" href="/request?service=family_support">{t("Request family support")}</a>
+      </section>
+
+      <section className="impact-card" aria-labelledby="city-history-title">
+        <h2 id="city-history-title">{t("Missing-person reports, citywide")}</h2>
+        <dl className="impact-stats">{history.map(fact => <div key={fact.period}>
+          <dd>{formatNumber(fact.value)}</dd><dt>{t("in")} {fact.period} · <a href={fact.url}>{t("source, p.")} {fact.page}</a></dt>
+        </div>)}</dl>
+        <p className="impact-source">{t("People reported missing to Milwaukee police. The same person could be reported more than once.")}</p>
       </section>
     </div>
-    <section className="impact-history" aria-labelledby="city-history-title">
-      <div><p className="impact-kicker">{t("Milwaukee historical context")}</p>
-        <h2 id="city-history-title">{t("Missing-person reports, citywide")}</h2>
-        <p>{t("Two annual snapshots from the Milwaukee Fire and Police Commission count people reported missing to police. The same person could be reported more than once.")}</p>
-      </div>
-      <dl>{history.map(fact => <div key={fact.period}>
-        <dt>{fact.period}</dt>
-        <dd>{formatNumber(fact.value)}</dd>
-        <dd className="history-link"><a href={fact.url}>{fact.period} {t("public safety report, p.")} {fact.page}</a></dd>
-      </div>)}</dl>
-    </section>
   </main>
 }

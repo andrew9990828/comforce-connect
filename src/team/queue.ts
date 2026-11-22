@@ -37,6 +37,8 @@ export interface TeamRequest {
   neighborhood: string
   contact_method: 'phone' | 'text' | 'email'
   contact: string
+  second_method?: TeamRequest['contact_method'] | null
+  second_contact?: string | null
   source: 'web' | 'call' | 'text'
   created_at: string
   family_support: { support: string; safe_contact: string; agency?: string; agency_reference?: string } | null

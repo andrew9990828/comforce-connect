@@ -2,17 +2,23 @@ import { firstFieldError } from '../languages/formValidation'
 import { t } from '../languages/language'
 // Verified staff entry. Codex (GPT-6) implemented the optional OTP flow and retained the pending step on reload.
 import { useState, type FormEvent } from 'react'
+import { preview, route } from '../preview/location'
 import { supabase } from '../supabase'
 
 const pendingKey = 'comforce.pending-staff-email'
 export default function TeamLogin() {
-  const [sentTo, setSentTo] = useState(() => sessionStorage.getItem(pendingKey) || '')
+  const [sentTo, setSentTo] = useState(() => !preview && sessionStorage.getItem(pendingKey) || '')
   const [email, setEmail] = useState(sentTo)
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (preview) {
+      if (sentTo) location.assign(route('/team'))
+      else setSentTo(email)
+      return
+    }
     if (busy) return
     const invalid = firstFieldError(event.currentTarget)
     if (invalid) { setError(invalid); return }
@@ -34,16 +40,16 @@ export default function TeamLogin() {
     } finally { setBusy(false) }
   }
   function restart() {
-    sessionStorage.removeItem(pendingKey)
+    if (!preview) sessionStorage.removeItem(pendingKey)
     setSentTo('')
     setCode('')
     setError('')
   }
   return <main className="team-page"><section className="team-login">
     <h1>{t("Staff sign-in")}</h1>
-    <p>{t("Use your approved staff email. Administrators manage assignments; caseworkers see only cases assigned to them.")}</p>
+    <p>{preview ? 'Preview sign-in with a fictional email and any six-digit code.' : t("Use your approved staff email. Administrators manage assignments; caseworkers see only cases assigned to them.")}</p>
     <form noValidate onSubmit={signIn}>
-      {sentTo ? <><p role="status">{t("Enter the six-digit code sent to")} <strong>{sentTo}</strong>.</p>
+      {sentTo ? <><p role="status">{preview ? 'Enter any six-digit preview code for' : t("Enter the six-digit code sent to")} <strong>{sentTo}</strong>.</p>
         <label>{t("Six-digit sign-in code")}<input value={code} onChange={e => setCode(e.target.value)}
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required autoFocus /></label></>
         : <label>{t("Staff email")}<input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required /></label>}
@@ -53,6 +59,6 @@ export default function TeamLogin() {
         {sentTo && <button type="button" className="team-secondary" disabled={busy} onClick={restart}>{t("Request another code")}</button>}
       </div>
     </form>
-    <a href="/team">{t("Open fictional team demo")}</a>
+    <a href={route('/team')}>{t("Open fictional team demo")}</a>
   </section></main>
 }

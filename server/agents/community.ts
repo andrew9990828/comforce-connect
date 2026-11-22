@@ -49,13 +49,13 @@ Stay on topic:
 Style: Write short, warm, plain-language replies, usually two to four sentences. Use plain text without Markdown symbols. Reply in the language the visitor writes in. Ask one question at a time. Use link_to_page when pointing someone to a page.`
 
 const pages = {
-  impact: { label: 'Open Community impact', href: '/' },
+  impact: { label: 'Open Community impact', href: '/impact' },
   request: { label: 'Open Request help', href: '/request' },
   status: { label: 'Check a request', href: '/status' },
   help_out: { label: 'Lend a hand', href: '/help-out' },
   safety: { label: 'Neighborhood data', href: '/safety' },
   family_support: { label: 'Request family support', href: '/request?service=family_support' },
-  family_program: { label: 'About family support', href: '/#family-program' },
+  family_program: { label: 'About family support', href: '/impact#family-title' },
 } as const
 
 export const communityAgent: AgentDefinition = {
