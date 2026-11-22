@@ -7,14 +7,17 @@
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/intake.test.mjs tests/crime-data.test.mjs tests/status.test.mjs",
+    "test": "node --experimental-strip-types --test tests/intake.test.mjs tests/crime-data.test.mjs tests/status.test.mjs tests/assistant.test.mjs",
     "test:ui": "node --test tests/status-ui.test.mjs",
     "test:db": "supabase test db",
-    "test:live": "node --env-file-if-exists=.env.local tests/walkthrough.mjs",
+    "test:assistant": "node --env-file-if-exists=.env.local tests/assistant.mjs",
+    "test:assistant-ui": "node tests/assistant-ui.mjs",
+    "test:live":"node --env-file-if-exists=.env.local tests/walkthrough.mjs",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "openai": "7.62.0",
     "@fontsource-variable/dm-sans": "^5.2.0",
     "@supabase/supabase-js": "2.119.2",
     "react": "19.3.1",
