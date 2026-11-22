@@ -92,7 +92,11 @@ function Workspace({ staff }: { staff: boolean }) {
         const result = await supabase.rpc('team_queue', { p_token: context.token }).abortSignal(controller.signal)
         if (!live) return
         if (result.error) {
-          if (['42501', 'PGRST301', 'PGRST303'].includes(result.error.code)) setRequests(null)
+          if (['42501', 'PGRST301', 'PGRST303'].includes(result.error.code)) {
+            membershipRef.current = null
+            setMembership(null)
+            setRequests(null)
+          }
           throw result.error
         }
         setRequests(result.data as TeamRequest[])
@@ -130,7 +134,7 @@ function Workspace({ staff }: { staff: boolean }) {
   const visible = rows.filter(({ request, need }) =>
     (!service || need.service === service) && (!owner || need.owner === owner) && (status === 'all' || need.status === status) &&
     (attention !== 'overdue' || isOverdue(need, now)) && (attention !== 'unassigned' || (need.status === 'open' && needsAssignment(need))) &&
-    (!query || [request.reference, request.neighborhood, request.description, demoText(request.description, !staff), serviceLabels[need.service], t(serviceLabels[need.service]), need.owner, partner(need)]
+    (!query || [request.reference, request.neighborhood, request.description, demoText(request.description, !!request.demo_fixture), serviceLabels[need.service], t(serviceLabels[need.service]), need.owner, partner(need)]
       .some(field => field?.toLowerCase().includes(query))))
     .sort((a, b) => Number(isOverdue(b.need, now)) - Number(isOverdue(a.need, now))
       || Number(needsAssignment(b.need)) - Number(needsAssignment(a.need))
@@ -194,7 +198,7 @@ function Workspace({ staff }: { staff: boolean }) {
                 : <span>{outcome(need)}</span>}</div>
               {need.service === 'family_support' && (partner(need) || verified) && <p className="team-update">
                 {partner(need) && <span><strong>{t("Partner")}</strong> {partner(need)}</span>}
-                {verified && <span><strong>{t("Verified follow-up")}</strong> {dated(verified.at)} · {demoText(verified.detail, !staff)}{verified.source && ` · ${demoText(verified.source, !staff)}`}</span>}</p>}
+                {verified && <span><strong>{t("Verified follow-up")}</strong> {dated(verified.at)} · {demoText(verified.detail, !!verified.demo_fixture)}{verified.source && ` · ${demoText(verified.source, !!verified.demo_fixture)}`}</span>}</p>}
             </li>
           })}</ul>
         </>}

@@ -64,26 +64,26 @@ export default function CaseDetail({ request, need, initial, token, owners, part
         <NeedActions key={need.id} need={need} initial={initial} token={token} owners={owners} partners={partners}
           canAssign={canAssign} staffMembers={staffMembers} demo={demo} legacyApi={legacyApi} onSaved={onSaved}/>
         {family && <dl className="case-family">
-          <div><dt>{t("Requested family support")}</dt><dd>{demoText(family.support, demo)}</dd></div>
-          <div><dt>{t("Safe follow-up")}</dt><dd>{demoText(family.safe_contact, demo)}</dd></div>
+          <div><dt>{t("Requested family support")}</dt><dd>{demoText(family.support, !!request.demo_fixture)}</dd></div>
+          <div><dt>{t("Safe follow-up")}</dt><dd>{demoText(family.safe_contact, !!request.demo_fixture)}</dd></div>
           {!!family.agency && <div><dt>{t("Agency already involved")}</dt><dd>{family.agency}</dd></div>}
           {!!family.agency_reference && <div><dt>{t("Agency reference")}</dt><dd>{family.agency_reference}</dd></div>}
         </dl>}
         {(family || verified) && <div className="case-verified">
           <h4>{t("Latest verified follow-up")}</h4>
-          {verified ? <><p>{demoText(verified.detail, demo)}</p><small>{dated(verified.at)}{verified.source ? ` · ${demoText(verified.source, demo)}` : ''}</small></> : <p>{t("Awaiting a verified update.")}</p>}
+          {verified ? <><p>{demoText(verified.detail, !!verified.demo_fixture)}</p><small>{dated(verified.at)}{verified.source ? ` · ${demoText(verified.source, !!verified.demo_fixture)}` : ''}</small></> : <p>{t("Awaiting a verified update.")}</p>}
         </div>}
       </section>
       <h3>{t("Resident contact")}</h3>
       <p className="case-contact"><strong>{t({phone:'Call',email:'Email',text:'Text'}[request.contact_method])}</strong> {request.contact}</p>
-      <p className="case-description">{demoText(request.description, demo)}</p>
+      {request.description && <p className="case-description">{demoText(request.description, !!request.demo_fixture)}</p>}
       {need.referrals.length > 0 && <details className="case-details"><summary>{t("Referral attempts")} <b>{need.referrals.length}</b></summary>
         <ol>{need.referrals.map(ref => <li key={ref.id}><strong>{ref.partner}</strong><span>{t("Sent")} {dated(ref.sent_at)}{ref.declined_at ? ` · ${t('Declined')} ${dated(ref.declined_at)}` : ''}</span></li>)}</ol>
       </details>}
       <details className="case-details"><summary>{t("Request history")} <b>{history.length}</b></summary>
         {history.length ? <ol>{history.map((event, idx) => <li key={idx}>
           <strong>{t(historyLabels[event.action] || event.action)} · {t(serviceLabels[event.service])}</strong>
-          <span>{event.action === 'direct' || (event.action === 'assign' && event.detail === 'Unassigned') ? t(event.detail) : event.action === 'follow_up' ? historyDeadline(event.detail) : demoText(event.detail, demo)}</span><small>{dated(event.at)}{event.source ? ` · ${demoText(event.source, demo)}` : ''}
+          <span>{event.action === 'direct' || (event.action === 'assign' && event.detail === 'Unassigned') ? t(event.detail) : event.action === 'follow_up' ? historyDeadline(event.detail) : demoText(event.detail, !!event.demo_fixture)}</span><small>{dated(event.at)}{event.source ? ` · ${demoText(event.source, !!event.demo_fixture)}` : ''}
             {event.actor_name ? ` · ${event.actor_name} (${event.actor_role === 'administrator' ? t('Administrator') : t('Caseworker')})` : ''}</small>
         </li>)}</ol> : <p>{t("Updates will appear here as the team works on this request.")}</p>}
       </details>

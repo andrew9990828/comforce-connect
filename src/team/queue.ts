@@ -19,6 +19,7 @@ export interface Need {
   partner_contact: string | null
   referrals: { id: string; partner: string; sent_at: string; declined_at: string | null }[]
   history: {
+    demo_fixture?: boolean
     at: string
     action: string
     detail: string
@@ -29,6 +30,7 @@ export interface Need {
 }
 
 export interface TeamRequest {
+  demo_fixture?: boolean
   id: string
   reference: string
   description: string

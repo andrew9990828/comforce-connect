@@ -1,5 +1,4 @@
 // Browser demo membership and resident pairing. Codex (GPT-6) implemented role-specific capability handling.
-import { supabase } from './supabase'
 
 const ownerKey = 'comforce.demo.owner.v1'
 const pairingKey = 'comforce.demo.resident.v1'
@@ -28,6 +27,7 @@ async function storedDemo(): Promise<Demo | undefined> {
   if (!validToken(demo?.staff_token) || !validToken(demo?.resident_token)) return
   if (validExpiry(demo.expires_at)) return demo
   if (demo.expires_at != null) return
+  const { supabase } = await import('./supabase')
   const { data, error } = await supabase.rpc('demo_workspace_expiry', {
     p_staff: demo.staff_token, p_resident: demo.resident_token,
   })
@@ -47,6 +47,7 @@ async function ownDemo(): Promise<Demo> {
     const initialize = async () => {
       const shared = await storedDemo()
       if (shared) return shared
+      const { supabase } = await import('./supabase')
       const result = await supabase.rpc('create_demo_workspace')
       if (result.error || !validToken(result.data?.staff_token) || !validToken(result.data?.resident_token)
         || !validExpiry(result.data?.expires_at)) {
@@ -68,6 +69,10 @@ async function ownDemo(): Promise<Demo> {
   return creating
 }
 
+export async function demoStaffToken() {
+  return (await ownDemo()).staff_token
+}
+
 export function isStaffMode() {
   return new URLSearchParams(location.search).get('mode') === 'staff'
 }
@@ -75,6 +80,7 @@ export function isStaffMode() {
 export async function staffContext(): Promise<StaffContext> {
   const demo = isStaffMode() ? null : await ownDemo()
   const token = demo?.staff_token ?? null
+  const { supabase } = await import('./supabase')
   const result = await supabase.rpc('staff_context', { p_token: token })
   if (result.error) {
     const message = result.error.message || ''

@@ -73,6 +73,28 @@ async function check(name, run) {
   finally { await context.close() }
 }
 
+await check('Changing the site language translates chat controls and preserves the conversation', async context => {
+  let sent
+  await context.route('**/agent/community', async route => {
+    sent = route.request().postDataJSON().messages[0].text
+    assert.equal(route.request().headers()['x-comforce-language'], 'es')
+    await route.fulfill({ json: { reply: 'Respuesta de prueba.', actions: [] } })
+  })
+  const page = await context.newPage()
+  await page.goto(app + '/request')
+  const picker = page.locator('.site-header select')
+  await picker.selectOption('es')
+  await page.getByRole('button', { name: '¿Necesita ayuda?' }).click()
+  await page.getByRole('button', { name: '¿Qué ayuda puedo recibir?' }).click()
+  await page.getByText('Respuesta de prueba.').waitFor()
+  assert.equal(sent, '¿Qué ayuda puedo recibir?')
+  await page.getByLabel('Mensaje', { exact: true }).fill('A draft I am still writing')
+  await picker.selectOption('en')
+  assert.equal(await page.getByLabel('Message', { exact: true }).inputValue(), 'A draft I am still writing')
+  await page.getByText(sent, { exact: true }).waitFor()
+  await page.getByText('Respuesta de prueba.').waitFor()
+})
+
 await check('A card saved while a reply is pending stays saved and writes one referral', async context => {
   const agent = stubAssistant(context)
   const page = await context.newPage()

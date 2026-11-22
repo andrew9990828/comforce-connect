@@ -1,5 +1,6 @@
 // Local presentation walkthrough. OpenAI Codex (GPT-6) built two paired-device stories, isolation checks and responsive inspections.
 import assert from 'node:assert/strict'
+import { boardWalkthrough } from './helpout-live.mjs'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
@@ -374,6 +375,7 @@ async function pairedDemo() {
   await stranger.getByText(/This case is unavailable/).waitFor()
   assert.equal(await stranger.getByRole('dialog').count(), 0)
   console.log('Staff intake source/return, private deep links, reloads, keyboard, touch, reduced motion and 390/1440 layouts passed.')
+  await boardWalkthrough(desk, web, app, link)
 }
 
 try { await pairedDemo() }

@@ -9,7 +9,8 @@ import { ExpiredPairing, pairingRejected, isStaffMode, residentToken, staffConte
 import ResidentRepair from '../ResidentRepair'
 import { neighborhoods } from '../impact/neighborhoods'
 import { serviceLabels, type Service } from '../services'
-import { submissionKey, validate, type ContactMethod, type IntakeDraft } from './form'
+import { pendingOperation } from '../team/pendingOperation'
+import { validate, type ContactMethod, type IntakeDraft } from './form'
 import './intake.css'
 
 const entry = new URLSearchParams(location.search).get('source')
@@ -27,7 +28,7 @@ export default function Intake() {
   const [agency, setAgency] = useState('')
   const [agencyReference, setAgencyReference] = useState('')
   const [source, setSource] = useState(staffEntry ? entry : 'web')
-  const [key] = useState(submissionKey)
+  const [retryRequired, setRetryRequired] = useState(false)
   const [errors, setErrors] = useState<ReturnType<typeof validate>>({})
   const [expired, setExpired] = useState(false)
   const [failed, setFailed] = useState('')
@@ -38,12 +39,15 @@ export default function Intake() {
   const family = selected.includes('family_support')
   const submitted = useRef(false)
   submitted.current = !!receipt
+  const retrying = useRef(false)
+  retrying.current = retryRequired
 
   // A draft from the community assistant fills only services, description and neighborhood. Residents add contact details.
   useEffect(() => {
     if (staffEntry) return
     function apply() {
       if (submitted.current) { location.assign('/request'); return }
+      if (busy.current || retrying.current) return
       const draft = takeDraft()
       if (!draft) return
       select(draft.services)
@@ -84,15 +88,24 @@ export default function Intake() {
     }
     busy.current = true
     setSaving(true)
+    let writeStarted = false
     try {
-      const token = staffEntry ? (await staffContext()).token : await residentToken()
-      const result = await supabase.rpc('submit_request', {
-        p_key: key, p_services: selected, p_description: description.trim(),
+      const staff = staffEntry ? await staffContext() : null
+      const token = staff ? staff.token : await residentToken()
+      const payload = {
+        p_services: [...selected].sort(), p_description: description.trim(),
         p_neighborhood: neighborhood, p_contact_method: method, p_contact: contact.trim(), p_source: source,
         p_token: token,
         p_family: family ? { support: description.trim(), safe_contact: safeContact.trim(), agency: agency.trim(), agency_reference: agencyReference.trim() } : null,
-      })
+      }
+      const operation = pendingOperation({ operation: 'submit_request', actor: staff?.userId ?? null, payload: JSON.stringify(payload) })
+      writeStarted = true
+      const result = await supabase.rpc('submit_request', { ...payload, p_key: operation.key })
       if (result.error || !result.data) {
+        if (result.status >= 400 && result.status < 500) {
+          writeStarted = false
+          setRetryRequired(false)
+        }
         if (!staffEntry && result.error && pairingRejected(token, result.status, result.error.code)) throw new ExpiredPairing()
         if (result.error?.code === '42501' && staffEntry) {
           setFailed('Sign in to the team workspace to log a call or text. Your entries are still here.')
@@ -100,6 +113,8 @@ export default function Intake() {
         }
         throw new Error('Submission unavailable')
       }
+      operation.confirm()
+      setRetryRequired(false)
       if (staffEntry) {
         const params = new URLSearchParams({ case: result.data })
         if (isStaffMode()) params.set('mode', 'staff')
@@ -110,7 +125,10 @@ export default function Intake() {
       window.scrollTo(0, 0)
     } catch (error) {
       if (error instanceof ExpiredPairing) setExpired(true)
-      else setFailed('We could not confirm your request. Your entries are still here. Check your connection and submit again.')
+      else if (writeStarted) {
+        setRetryRequired(true)
+        setFailed('Your request may already have been saved. Retry the same details to get your reference number.')
+      } else setFailed('We could not confirm your request. Your entries are still here. Check your connection and submit again.')
     } finally {
       busy.current = false
       setSaving(false)
@@ -139,7 +157,7 @@ export default function Intake() {
       <p>{t("Choose all the help needed. Use fictional details for this demo.")}</p></div>
     <div className="intake-layout">
       <form className="intake-form" onSubmit={submit} noValidate aria-label={t("Request help")} aria-busy={saving}>
-        <fieldset disabled={saving} className="intake-fields">
+        <fieldset disabled={saving || retryRequired} className="intake-fields">
           {staffEntry && <div className="intake-block"><label htmlFor="source">{t("How did the request come in?")}</label>
             <select id="source" value={source || 'call'} onChange={e => setSource(e.target.value)}>
               <option value="call">{t("Phone call")}</option><option value="text">{t("Text message")}</option>
@@ -180,10 +198,10 @@ export default function Intake() {
               placeholder={method === 'email' ? 'resident@example.com' : '(414) 555-0100'} value={contact} aria-invalid={!!errors.contact} aria-describedby={describedBy('contact')}
               onChange={e => { (method === 'email' ? setEmail : setPhone)(e.target.value); clearError('contact') }}/>
             {message('contact')}</div>
-          {expired && <ResidentRepair onPaired={() => setExpired(false)}/>}
-          {failed && <p className="intake-error submit-error" role="alert">{t(failed)}</p>}
-          <button type="submit" disabled={expired} className="intake-submit">{saving ? t('Saving request…') : staffEntry ? t('Save and open case') : t('Submit request')}</button>
         </fieldset>
+        {expired && <ResidentRepair onPaired={() => setExpired(false)}/>}
+        {failed && <p className="intake-error submit-error" role="alert">{t(failed)}</p>}
+        <button type="submit" disabled={saving || expired} className="intake-submit">{saving ? t('Saving request…') : staffEntry ? t('Save and open case') : t('Submit request')}</button>
       </form>
       <aside className="intake-aside"><h2>{staffEntry ? t('After you save') : t('After you submit')}</h2>
         <p>{staffEntry ? t('The case opens in your queue with all its needs together.') : t('You’ll receive one reference number covering everything you select.')}</p>

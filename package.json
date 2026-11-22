@@ -19,6 +19,7 @@
   "dependencies": {
     "openai": "7.62.0",
     "@fontsource-variable/dm-sans": "^5.2.0",
+    "@noble/hashes": "1.8.0",
     "@supabase/supabase-js": "2.119.2",
     "react": "19.3.1",
     "react-dom": "19.3.1"

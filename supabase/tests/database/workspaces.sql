@@ -19,7 +19,9 @@ begin
   assert (a->>'expires_at')::timestamptz between statement_timestamp()+interval '23 hours'
     and statement_timestamp()+interval '25 hours';
   assert (select count(distinct month)>=8 from public.public_impact(a->>'resident_token'));
-  assert jsonb_array_length(public.team_queue(a->>'staff_token')) > 0;
+  assert exists(select 1 from jsonb_array_elements(public.team_queue(a->>'staff_token')) q,
+    jsonb_array_elements(q->'needs') n,jsonb_array_elements(n->'history') h
+    where q->>'demo_fixture'='true' and h->>'action'='check_in' and h->>'demo_fixture'='true');
   begin
     perform public.team_queue(a->>'resident_token');
     raise exception 'Resident link could read a queue';
@@ -85,7 +87,7 @@ begin
     raise exception 'Missing safe-contact instructions accepted';
   exception when invalid_parameter_value then null; end;
   select q into strict entry from jsonb_array_elements(public.team_queue(a->>'staff_token')) q where q->>'reference'=ref;
-  assert entry->'family_support' = family and jsonb_array_length(entry->'needs')=2;
+  assert entry->'family_support' = family and jsonb_array_length(entry->'needs')=2 and entry->>'demo_fixture'='false';
   select (n->>'id')::uuid into strict family_id from jsonb_array_elements(entry->'needs') n where n->>'service'='family_support';
   select (n->>'id')::uuid into strict ride_id from jsonb_array_elements(entry->'needs') n where n->>'service'='transportation';
   assert not exists(select 1 from jsonb_array_elements(public.team_queue(b->>'staff_token')) q where q->>'reference'=ref);
@@ -123,9 +125,9 @@ begin
   perform public.update_need(family_id,'partner_contact','Sample partner',p_token=>a->>'staff_token',p_key=>contact_key);
   perform public.update_need(family_id,'follow_up',p_when=>happened,p_token=>a->>'staff_token',p_key=>follow_key);
   perform public.update_need(family_id,'follow_up',p_when=>happened,p_token=>a->>'staff_token',p_key=>follow_key);
-  perform public.update_need(family_id,'check_in','Reviewed support options',p_when=>happened,p_token=>a->>'staff_token',
+  perform public.update_need(family_id,'check_in','Reviewed support options with the family.',p_when=>happened,p_token=>a->>'staff_token',
     p_source=>'Family phone conversation',p_key=>check_key);
-  perform public.update_need(family_id,'check_in','Reviewed support options',p_when=>happened,p_token=>a->>'staff_token',
+  perform public.update_need(family_id,'check_in','Reviewed support options with the family.',p_when=>happened,p_token=>a->>'staff_token',
     p_source=>'Family phone conversation',p_key=>check_key);
   begin
     perform public.update_need(family_id,'assign','Different worker',p_token=>a->>'staff_token',p_key=>assign_key);
@@ -145,7 +147,7 @@ begin
       assert need->>'owner'='Von' and need->>'partner_contact'='Sample partner' and need->>'follow_up' is null;
       assert (select count(*)=1 from jsonb_array_elements(need->'history') h
         where h->>'action'='check_in' and h->>'source'='Family phone conversation'
-        and h->>'detail'='Reviewed support options' and (h->>'at')::timestamptz=happened);
+        and h->>'demo_fixture'='false' and h->>'detail'='Reviewed support options with the family.' and (h->>'at')::timestamptz=happened);
       assert (select count(*)=4 from jsonb_array_elements(need->'history') h
         where h->>'action' = any(array['assign','partner_contact','follow_up','check_in']));
     else

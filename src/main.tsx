@@ -8,9 +8,9 @@ import { lazy, Suspense, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@fontsource-variable/dm-sans/wght.css'
 import './base.css'
-import { configured } from './supabase'
 import { acceptResidentLink, isStaffMode } from './workspace'
 
+const configured = Boolean(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY)
 const path = location.pathname.replace(/\/+$/, '') || '/'
 if (path === '/request' || path === '/' || path === '/help-out' || path === '/status') acceptResidentLink()
 const source = new URLSearchParams(location.search).get('source')
