@@ -196,7 +196,7 @@ begin
   assigned_ref := public.submit_request(gen_random_uuid(),array['shelter'],'Assigned caseworker test','Unknown',
     'email','assigned@example.invalid','web');
   mixed_ref := public.submit_request(gen_random_uuid(),array['transportation','family_support'],
-    'Mixed visibility test','Unknown','phone','414-555-0188','call',p_family=>jsonb_build_object(
+    'Private sibling support','Unknown','phone','414-555-0188','call',p_family=>jsonb_build_object(
       'support','Private sibling support','safe_contact','Do not leave voicemail',
       'agency','Private agency','agency_reference','PRIVATE-42'));
   perform set_config('comforce_test.assigned_ref',assigned_ref,true);
@@ -256,6 +256,7 @@ begin
   assert jsonb_array_length(mixed_case->'needs')=1;
   assert mixed_case->'needs'->0->>'service'='transportation';
   assert mixed_case->'family_support'='null'::jsonb;
+  assert mixed_case->>'description'='' and position('Private sibling support' in mixed_case::text)=0;
   assert not exists(select 1 from jsonb_array_elements(queue) q, jsonb_array_elements(q->'needs') n
                     where (n->>'id')::uuid=current_setting('comforce_test.food')::uuid);
   assert exists(select 1 from jsonb_array_elements(queue) q, jsonb_array_elements(q->'needs') n
@@ -307,6 +308,7 @@ begin
   select q into strict mixed_case from jsonb_array_elements(queue) q
     where q->>'reference'=current_setting('comforce_test.mixed_ref');
   assert mixed_case->'family_support'->>'safe_contact'='Do not leave voicemail';
+  assert mixed_case->>'description'='Private sibling support';
 end $$;
 reset role;
 do $$

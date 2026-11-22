@@ -1,4 +1,4 @@
-import { t } from '../languages/language'
+import { formatNumber, t } from '../languages/language'
 // Public landing page. Codex (GPT-6) designed the atlas introduction, program entry and attributed historical context.
 import Atlas from './Atlas'
 import { familyProgram, history, reach } from './publishedFacts'
@@ -13,10 +13,14 @@ export default function Impact() {
         <p className="impact-intro-copy">{t("Community Task Force MKE connects Milwaukee residents with food and rides, and coordinates")} <a href="#family-program">{t("support for families")}</a> {t("when a loved one goes missing.")}</p>
         <a className="impact-cta" href="/request">{t("Request help")}</a>
         <div className="impact-reach">
-          <p className="impact-source">{t("Reported by ComForce MKE")}</p>
-          <dl>{reach.map(fact => <div key={fact.unit}><dt>{t(fact.unit)}</dt><dd>
-            <a href={fact.url} aria-label={t('Source for {value} {unit}, ComForce MKE', { value: fact.value, unit: t(fact.unit) })}>{fact.value}</a>
-          </dd></div>)}</dl>
+          <p className="impact-source">{t("Reported by ComForce MKE")} · {t(reach[0].period)}</p>
+          <dl>{reach.map(fact => {
+            const value = formatNumber(fact.minimum) + '+'
+            return <div key={fact.unit}>
+              <dt>{t(fact.unit)}</dt>
+              <dd><a href={fact.url} aria-label={t('Source for {value} {unit}, ComForce MKE', { value, unit: t(fact.unit) })}>{value}</a></dd>
+            </div>
+          })}</dl>
         </div>
       </header>
       <Atlas />
@@ -34,7 +38,7 @@ export default function Impact() {
       </div>
       <dl>{history.map(fact => <div key={fact.period}>
         <dt>{fact.period}</dt>
-        <dd>{fact.value.toLocaleString('en-US')}</dd>
+        <dd>{formatNumber(fact.value)}</dd>
         <dd className="history-link"><a href={fact.url}>{fact.period} {t("public safety report, p.")} {fact.page}</a></dd>
       </div>)}</dl>
     </section>

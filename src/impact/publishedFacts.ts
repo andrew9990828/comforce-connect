@@ -6,9 +6,9 @@ const comforce = {
 }
 
 export const reach = [
-  { ...comforce, value: '10,000+', unit: 'residents served', geography: 'Milwaukee',
+  { ...comforce, minimum: 10000, unit: 'residents served', geography: 'Milwaukee',
     definition: 'Residents ComForce reports serving across Milwaukee.' },
-  { ...comforce, value: '300+', unit: 'volunteers and partners', geography: 'ComForce MKE network',
+  { ...comforce, minimum: 300, unit: 'volunteers and partners', geography: 'ComForce MKE network',
     definition: 'Volunteers and partners in ComForce’s network, counted together.' },
 ]
 

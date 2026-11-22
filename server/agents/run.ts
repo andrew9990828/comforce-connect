@@ -1,5 +1,6 @@
 // Shared OpenAI tool loop for the website assistants. Claude (Opus 5.5) implemented the loop, request limits and refusal handling.
 import OpenAI from 'openai'
+import { redact } from './privacy'
 import type { ChatTurn, ClientAction } from '../../src/assistant/protocol'
 
 export interface AgentEnv {
@@ -23,11 +24,12 @@ export interface AgentDefinition {
 const maxSteps = 8
 const declined = 'I can’t help with that here. For anything urgent, call 911. You can also dial 211 for local resources.'
 
-export async function runAgent(agent: AgentDefinition, turns: ChatTurn[], env: AgentEnv) {
+export async function runAgent(agent: AgentDefinition, turns: ChatTurn[], env: AgentEnv, language?: string) {
   const client = new OpenAI({ apiKey: env.OPENAI_API_KEY })
+  const replyLanguage = language && `Default to the selected site language (${language}). Use the language the person writes in or explicitly asks for when it differs.`
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: 'system', content: agent.context ? `${agent.instructions}\n\n${agent.context}` : agent.instructions },
-    ...turns.map(turn => ({ role: turn.role, content: turn.text })),
+    { role: 'system', content: [agent.instructions, agent.context, replyLanguage].filter(Boolean).join('\n\n') },
+    ...turns.map(turn => ({ role: turn.role, content: redact(turn.text) })),
   ]
   const actions: ClientAction[] = []
 

@@ -96,3 +96,7 @@ export function chicagoDate(iso: string) {
   const part = (name: Intl.DateTimeFormatPartTypes) => parts.find(p => p.type === name)?.value ?? ''
   return part('day') + ' ' + t(part('month')) + ' ' + part('year') + ' · ' + part('hour') + ':' + part('minute') + ' ' + part('timeZoneName')
 }
+
+export function formatNumber(value: number, options?: Intl.NumberFormatOptions) {
+  return value.toLocaleString(language === 'hmn' ? 'en-US' : language, options)
+}

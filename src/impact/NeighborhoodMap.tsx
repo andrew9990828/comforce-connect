@@ -1,4 +1,4 @@
-import { t } from '../languages/language'
+import { formatNumber, t } from '../languages/language'
 // Milwaukee neighborhood atlas. Codex (GPT-6) composed the City boundaries with locally simplified Census TIGER/Line water geometry.
 import { useEffect, useRef, useState } from 'react'
 import geography from './milwaukee.json'
@@ -18,7 +18,6 @@ const labels: Record<Area, [number, number, 'start' | 'end']> = {
   'Silver City': [92, 302, 'end'], 'Bay View': [259, 341, 'start'],
 }
 const areas = Object.keys(labels) as Area[]
-const number = new Intl.NumberFormat('en-US')
 
 interface MapProps {
   selected: string
@@ -92,7 +91,7 @@ export default function NeighborhoodMap({ selected, periodLabel, counts, total, 
           <option value="">{t("Citywide")}</option>{[...areas, 'Unknown'].map(name =>
             <option key={name} value={name}>{name === 'Unknown' ? t('Unknown neighborhood') : name}</option>)}
         </select>
-        <span aria-live="polite">{total === null ? t('Awaiting data') : t(total === 1 ? '{count} need fulfilled' : '{count} needs fulfilled', { count: number.format(total) })}</span>
+        <span aria-live="polite">{total === null ? t('Awaiting data') : t(total === 1 ? '{count} need fulfilled' : '{count} needs fulfilled', { count: formatNumber(total) })}</span>
       </div>
       <div className="atlas-north" aria-hidden="true"><span>{t("N")}</span><i /></div>
     </div>

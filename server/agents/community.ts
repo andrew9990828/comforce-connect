@@ -4,6 +4,7 @@ import { neighborhoods } from '../../src/impact/neighborhoods'
 import { familyProgram, history, reach } from '../../src/impact/publishedFacts'
 import { serviceLabels, type Service } from '../../src/services'
 import { text, tool, type AgentDefinition } from './run'
+import { redact } from './privacy'
 
 const services = Object.entries(serviceLabels).map(([id, label]) => `${id} (${label})`).join(', ')
 
@@ -12,10 +13,10 @@ const instructions = `You are the help assistant on the public ComForce Connect 
 What you do:
 - Help visitors understand what help is available and which services fit their situation.
 - Help them start a request: work out which services they need, a short description and their neighborhood, then call prefill_request so the form fills in for them to review and submit.
-- Explain the site: the Community impact page and the Request help page.
+- Help visitors navigate Community impact, Neighborhood data, Request help, Check a request and Lend a hand. For donations, volunteering and event sign-ups, link to Lend a hand.
 
 What you can't do, and should say plainly when asked:
-- You cannot see, look up or change any request, case, reference number or person's information. If someone asks about the status of a request, explain that the team follows up using the contact method they chose, and they can mention their reference number when the team gets in touch.
+- You cannot see, look up or change any request, case, reference number or person's information. If someone asks about request progress, use link_to_page with status. They enter their reference and the last four phone digits or their email on that private lookup form, never in chat.
 - You cannot submit a request yourself. The resident always reviews the form and presses Submit request.
 - You cannot dispatch help or file an official missing-person report.
 - Never promise that help will be provided, when it will arrive, or that someone qualifies. Explain that the team reviews each request and follows up.
@@ -36,7 +37,7 @@ Site facts:
 - Neighborhoods on the form: ${neighborhoods.join(', ')}, or Unknown / unsure.
 - After submitting, the team reviews each need and follows up to arrange direct help or a partner referral.
 - ${familyProgram.name}: ${familyProgram.description}
-- ComForce reports ${reach.map(fact => `${fact.value} ${fact.unit}`).join(' and ')} (no reporting period given).
+- ComForce reports ${reach.map(fact => `${fact.minimum.toLocaleString('en-US')}+ ${fact.unit}`).join(' and ')} (no reporting period given).
 - The Community impact page shows a map of six Milwaukee neighborhoods with fictional demo activity from April to November 2026: requests helped, referrals and completed family callbacks. Selecting a neighborhood or changing the month updates the map, totals and the six-month trend.
 - Historical context on that page: the Milwaukee Fire and Police Commission counted ${history.map(fact => `${fact.value.toLocaleString('en-US')} people reported missing to police in ${fact.period}`).join(' and ')}. One person can appear in several reports.
 
@@ -50,6 +51,9 @@ Style: Write short, warm, plain-language replies, usually two to four sentences.
 const pages = {
   impact: { label: 'Open Community impact', href: '/' },
   request: { label: 'Open Request help', href: '/request' },
+  status: { label: 'Check a request', href: '/status' },
+  help_out: { label: 'Lend a hand', href: '/help-out' },
+  safety: { label: 'Neighborhood data', href: '/safety' },
   family_support: { label: 'Request family support', href: '/request?service=family_support' },
   family_program: { label: 'About family support', href: '/#family-program' },
 } as const
@@ -69,14 +73,14 @@ export const communityAgent: AgentDefinition = {
   async runTool(name, input, actions) {
     if (name === 'link_to_page') {
       const page = pages[input.page as keyof typeof pages]
-      if (!page) return { content: 'Unknown page.', isError: true }
+      if (!Object.hasOwn(pages, input.page as string)) return { content: 'Unknown page.', isError: true }
       actions.push({ type: 'link', ...page })
       return { content: 'The button is shown below your reply.' }
     }
     if (name === 'prefill_request') {
-      const chosen = Array.isArray(input.services) ? input.services.filter((s): s is Service => typeof s === 'string' && s in serviceLabels) : []
+      const chosen = Array.isArray(input.services) ? input.services.filter((s): s is Service => typeof s === 'string' && Object.hasOwn(serviceLabels, s)) : []
       if (!chosen.length) return { content: 'Choose at least one service.', isError: true }
-      const description = text(input, 'description', chosen.includes('family_support') ? 500 : 800)
+      const description = redact(text(input, 'description', chosen.includes('family_support') ? 500 : 800))
       const neighborhood = text(input, 'neighborhood', 40)
       if (neighborhood && neighborhood !== 'Unknown' && !neighborhoods.includes(neighborhood)) return { content: 'Unknown neighborhood.', isError: true }
       actions.push({ type: 'prefill', services: [...new Set(chosen)], description, neighborhood })

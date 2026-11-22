@@ -5,6 +5,7 @@ import water from '../impact/water.json'
 import { monthlyIncidents, neighborhoodNames, type Neighborhood } from './crimeData'
 
 const frameMilliseconds = 3000
+const reducedMotionQuery = '(prefers-reduced-motion: reduce)'
 const colors = [
   { label: '0–24', color: '#f6e9c9' },
   { label: '25–49', color: '#add9be' },
@@ -28,11 +29,19 @@ function level(value: number) {
 }
 
 export default function CrimeHeatmap() {
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const [frame, setFrame] = useState(0)
-  const [playing, setPlaying] = useState(!reduceMotion)
+  const [playing, setPlaying] = useState(() => !window.matchMedia(reducedMotionQuery).matches)
   const current = monthlyIncidents[frame]
   const total = Object.values(current.counts).reduce((sum, value) => sum + value, 0)
+
+  useEffect(() => {
+    const preference = window.matchMedia(reducedMotionQuery)
+    function update(event: MediaQueryListEvent) {
+      if (event.matches) setPlaying(false)
+    }
+    preference.addEventListener('change', update)
+    return () => preference.removeEventListener('change', update)
+  }, [])
 
   useEffect(() => {
     if (!playing) return
@@ -58,9 +67,9 @@ export default function CrimeHeatmap() {
     <p className="crime-player-copy">{t("The map advances every three seconds and repeats after 30 seconds. Darker color means more reported incidents, not a safety rating.")}</p>
     <figure className="crime-map">
       <div className="crime-map-frame">
-        <svg viewBox="0 -16 330 487" role="img" aria-labelledby="crime-map-title crime-map-description">
+        <svg viewBox="-20 -16 405 487" role="img" aria-labelledby="crime-map-title" aria-describedby="crime-map-description">
           <title id="crime-map-title">{t('{month} reported-incident heatmap', { month: monthLabel(current.month) })}</title>
-          <desc id="crime-map-description">{t("Six Milwaukee neighborhoods shaded by the number of unique MPD NIBRS incidents reported during")} {monthLabel(current.month)}.</desc>
+          <desc id="crime-map-description">{t("Six Milwaukee neighborhoods shaded by the number of unique MPD NIBRS incidents reported during")} {monthLabel(current.month)}. {neighborhoodNames.map(name => name + ' · ' + current.counts[name]).join(', ')}.</desc>
           <defs>
             <pattern id="crime-field" width="28" height="28" patternUnits="userSpaceOnUse">
               <path d="M28 0H0V28" fill="none" stroke="#9bafa1" strokeWidth=".55" opacity=".46" />
@@ -70,10 +79,10 @@ export default function CrimeHeatmap() {
             </pattern>
             <clipPath id="crime-shore"><path d={water.lake} /></clipPath>
           </defs>
-          <rect x="-15" y="-30" width="375" height="530" fill="#e4e8d9" />
-          <rect x="-15" y="-30" width="375" height="530" fill="url(#crime-field)" />
+          <rect x="-20" y="-30" width="405" height="530" fill="#e4e8d9" />
+          <rect x="-20" y="-30" width="405" height="530" fill="url(#crime-field)" />
           <path d={water.lake} className="crime-lake" />
-          <g clipPath="url(#crime-shore)"><rect x="0" y="-20" width="350" height="510" fill="url(#crime-waves)" /></g>
+          <g clipPath="url(#crime-shore)"><rect x="0" y="-20" width="385" height="510" fill="url(#crime-waves)" /></g>
           <path d={geography.context} className="crime-context" />
           {neighborhoodNames.map(name => <path key={name} d={geography.areas[name].d}
             fill={colors[level(current.counts[name])].color} className="crime-area" />)}
@@ -91,7 +100,7 @@ export default function CrimeHeatmap() {
           })}
           <g className="crime-scale" transform="translate(19 449)"><path d="M0 -3v4h48.1v-4" /><text y="-6">{t("2 mi")}</text></g>
         </svg>
-        <div className="crime-readout" aria-live="polite">
+        <div className="crime-readout" aria-live={playing ? 'off' : 'polite'}>
           <span>{monthLabel(current.month)}</span><strong>{total}</strong><span>{t("incidents across six areas")}</span>
         </div>
       </div>

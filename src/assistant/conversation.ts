@@ -1,7 +1,7 @@
 // Conversation state for the assistant panel, kept pure so the reply, reload and reset rules can be tested.
 // Claude (Opus 5.5) wrote these rules after review found replies overwriting saved cards and stale turns breaking recovery.
 import { submissionKey } from '../intake/form'
-import type { ChatTurn, ClientAction } from './protocol'
+import { limits, maxBodyBytes, type ChatTurn, type ClientAction } from './protocol'
 
 export type StoredAction = ClientAction & { status?: 'saved' | 'dismissed'; key?: string }
 export type StoredTurn = ChatTurn & { actions?: StoredAction[] }
@@ -9,6 +9,21 @@ export type StoredTurn = ChatTurn & { actions?: StoredAction[] }
 export interface Stored { open: boolean; chat: string; turns: StoredTurn[] }
 
 export const newChat = (open = false): Stored => ({ open, chat: submissionKey(), turns: [] })
+
+// Send only complete recent pairs that fit the endpoint's UTF-8 budget, plus the current question.
+export function requestBody(turns: StoredTurn[], token?: string | null) {
+  const messages = turns.slice(-limits.turns).map(({ role, text }) => ({
+    role, text: text.slice(0, role === 'assistant' ? limits.characters * 6 : limits.characters),
+  }))
+  if (messages[0]?.role === 'assistant') messages.shift()
+  const encoder = new TextEncoder()
+  let body = JSON.stringify({ messages, token })
+  while (messages.length > 1 && encoder.encode(body).byteLength > maxBodyBytes) {
+    messages.splice(0, 2)
+    body = JSON.stringify({ messages, token })
+  }
+  return body
+}
 
 // Each proposal gets its operation key when it arrives, so every save of that card, including retries, reuses one key.
 export function withKeys(actions: ClientAction[]): StoredAction[] {
@@ -57,10 +72,13 @@ export function updateAction(state: Stored, chat: string, turn: number, index: n
 
 // Team conversations are stored per identity and workspace, and all of them are removed on sign-out.
 export const teamPrefix = 'comforce.assistant.team.'
-export function clearTeamChats(storage: Pick<Storage, 'length' | 'key' | 'removeItem'> = sessionStorage) {
-  const keys: string[] = []
-  for (let i = 0; i < storage.length; i++) { const key = storage.key(i); if (key?.startsWith(teamPrefix)) keys.push(key) }
-  for (const key of keys) storage.removeItem(key)
+export function clearTeamChats(storage?: Pick<Storage, 'length' | 'key' | 'removeItem'>) {
+  try {
+    const store = storage ?? sessionStorage
+    const keys: string[] = []
+    for (let i = 0; i < store.length; i++) { const key = store.key(i); if (key?.startsWith(teamPrefix)) keys.push(key) }
+    for (const key of keys) store.removeItem(key)
+  } catch { /* Staff can still sign out when tab storage is unavailable. */ }
 }
 // Short, non-reversible label for a workspace token, so the token itself isn't repeated in a storage key.
 export function scopeLabel(value: string) {

@@ -80,7 +80,7 @@
 @media (max-width: 700px) {
   .safety-lead, .crime-table-heading, .safety-notes { grid-template-columns: 1fr; gap: 1rem; }
   .safety-lead h1 { font-size: clamp(3rem,12vw,4.5rem); }
-  .crime-map-frame { height: auto; aspect-ratio: 330 / 487; max-height: 36rem; }
+  .crime-map-frame { height: auto; aspect-ratio: 405 / 487; max-height: 36rem; }
   .crime-timeline { overflow-x: auto; }
   .crime-timeline ol { min-width: 34rem; }
 }

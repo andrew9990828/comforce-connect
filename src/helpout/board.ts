@@ -41,7 +41,3 @@ export function progress(item: Pick<BoardItem, 'kind' | 'goal' | 'collected' | '
 
 // The count is of offer records, not people: one neighbor can offer more than once.
 export const offersLabel = (n: number) => `${n === 1 ? 'offer' : 'offers'} of help made this month.`
-
-export const eventDate = (iso: string) => new Date(iso).toLocaleString('en-US', {
-  timeZone: 'America/Chicago', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-})

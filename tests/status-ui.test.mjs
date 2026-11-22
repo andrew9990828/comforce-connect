@@ -104,3 +104,83 @@ test('a lookup that finishes after the inputs change is ignored', async () => {
   assert.equal(await page.getByRole('button', { name: 'Check status' }).isEnabled(), true)
   await page.context().close()
 })
+
+test('an expired pair can be repaired in place and a translated status keeps the partner name', async () => {
+  const replacement = 'b'.repeat(64)
+  const page = await statusPage((route, body) => {
+    if (body.p_token !== replacement) return route.fulfill({ ...json({ code: '42501', message: 'Expired resident link' }), status: 403 })
+    const result = request('CF-1013', 'food')
+    result.needs[0].partner = 'Riverwest Pantry'
+    return route.fulfill(json(result))
+  })
+  try {
+    await page.locator('#reference').fill('CF-1013')
+    await page.locator('#check').fill('0100')
+    await page.getByRole('button', { name: 'Check status' }).click()
+    await page.getByLabel('New resident link').fill(origin + '/request#join=' + replacement)
+    await page.getByRole('button', { name: 'Pair again' }).click()
+    await page.getByRole('button', { name: 'Check status' }).click()
+    await page.locator('.status-result').waitFor()
+    await page.locator('header select').selectOption('es')
+    await page.getByRole('heading', { name: '¿Cuál es el estado de mi solicitud?' }).waitFor()
+    assert.match(await page.locator('.status-message').innerText(), /en contacto con Riverwest Pantry/)
+    assert.equal(await page.locator('#reference').inputValue(), 'CF-1013')
+    assert.equal(await page.locator('#check').inputValue(), '0100')
+  } finally { await page.context().close() }
+})
+
+test('a resident can retry an unconfirmed intake and reach status using the original reference', async () => {
+  const page = await statusPage((route, body) => route.fulfill(json(request(body.p_reference, 'food'))))
+  const submissions = []
+  await page.route('**/rest/v1/rpc/submit_request', route => {
+    submissions.push(route.request().postDataJSON())
+    return route.fulfill(submissions.length === 1
+      ? { ...json({ message: 'No response from database' }), status: 502 }
+      : json('CF-1234'))
+  })
+  try {
+    await page.goto(origin + '/request')
+    await page.getByLabel('Food', { exact: true }).check()
+    await page.getByLabel('Description', { exact: true }).fill('Fictional groceries')
+    await page.getByLabel('Neighborhood', { exact: true }).selectOption('Riverwest')
+    await page.getByLabel('Phone number', { exact: true }).fill('4145550100')
+    await page.getByRole('button', { name: 'Submit request' }).click()
+    await page.getByRole('alert').getByText(/may already have been saved/).waitFor()
+    assert.equal(await page.getByLabel('Description', { exact: true }).isDisabled(), true)
+    await page.getByRole('button', { name: 'Submit request', exact: true }).click()
+    await page.getByRole('link', { name: 'Check request status' }).click()
+    assert.equal(await page.locator('#reference').inputValue(), 'CF-1234')
+    await page.locator('#check').fill('0100')
+    await page.getByRole('button', { name: 'Check status' }).click()
+    await page.getByRole('heading', { name: 'Food' }).waitFor()
+    assert.equal(submissions.length, 2)
+    assert.deepEqual(submissions[0], submissions[1])
+  } finally { await page.context().close() }
+})
+
+test('a fresh status lookup can pair in place without creating a demo workspace', async () => {
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  const calls = []
+  await page.route('**/rest/v1/rpc/*', route => {
+    const rpc = new URL(route.request().url()).pathname.split('/').pop()
+    calls.push({ rpc, token: route.request().postDataJSON()?.p_token })
+    return route.fulfill(json(request('CF-1013', 'food')))
+  })
+  try {
+    await page.goto(origin + '/status?ref=CF-1013')
+    await page.locator('#check').fill('0100')
+    await page.getByRole('button', { name: 'Check status' }).click()
+    await page.getByText(/Use the browser where you submitted/).waitFor()
+    assert.deepEqual(calls, [])
+    await page.getByLabel('New resident link').fill(origin + '/request#join=' + pairedToken)
+    await page.getByRole('button', { name: 'Pair again' }).click()
+    await page.getByRole('button', { name: 'Check status' }).click()
+    await page.locator('.status-result').waitFor()
+    await page.goto(origin + '/status?mode=staff&ref=CF-1013')
+    await page.locator('#check').fill('0100')
+    await page.getByRole('button', { name: 'Check status' }).click()
+    await page.locator('.status-result').waitFor()
+    assert.deepEqual(calls, [{ rpc: 'request_status', token: pairedToken }, { rpc: 'request_status', token: null }])
+  } finally { await context.close() }
+})

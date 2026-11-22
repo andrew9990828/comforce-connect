@@ -1,9 +1,9 @@
-import { t } from '../languages/language'
+import { formatNumber, t } from '../languages/language'
 import CrimeHeatmap from './CrimeHeatmap'
 import { crimeSources, neighborhoodSummary } from './crimeData'
 import './safety.css'
 
-const signed = new Intl.NumberFormat('en-US', { signDisplay: 'always', maximumFractionDigits: 1 })
+const signedPercent = (change: number) => formatNumber(change / 100, { style: 'percent', signDisplay: 'always', maximumFractionDigits: 1 })
 
 export default function Safety() {
   return <main className="safety-page">
@@ -13,7 +13,8 @@ export default function Safety() {
         <h1><em>{t('Neighborhood context')}</em></h1>
       </div>
       <div className="safety-intro">
-        <p>{t("Explore reported MPD incidents in the six neighborhoods served by this demonstration. The animation uses aggregate public records and never displays individual addresses.")}</p>\n        <p><strong>If someone is in immediate danger, call 911.</strong></p>
+        <p>{t("Explore reported MPD incidents in the six neighborhoods served by this demonstration. The animation uses aggregate public records and never displays individual addresses.")}</p>
+        <p><strong>{t("If someone is in immediate danger, call 911.")}</strong></p>
         <p className="safety-period"><strong>{t("Comparison period")}</strong><span>{t("January 1–October 31 · 2025 and 2026")}</span></p>
       </div>
     </header>
@@ -23,8 +24,8 @@ export default function Safety() {
       <aside className="standouts" aria-labelledby="standouts-title">
         <p className="safety-kicker">{t("What stands out")}</p>
         <h2 id="standouts-title">{t("A closer read")}</h2>
-        <article><strong>−7.5%</strong><h3>{t("Fewer incidents overall")}</h3><p>{t("The six areas recorded 3,116 incidents, compared with 3,369 during the same 2025 period.")}</p></article>
-        <article><strong>+6.1%</strong><h3>{t("Riverwest moved differently")}</h3><p>{t("Riverwest was the only selected neighborhood with an overall increase: 606 incidents, up from 571.")}</p></article>
+        <article><strong>{signedPercent(-7.5)}</strong><h3>{t("Fewer incidents overall")}</h3><p>{t("The six areas recorded 3,116 incidents, compared with 3,369 during the same 2025 period.")}</p></article>
+        <article><strong>{signedPercent(6.1)}</strong><h3>{t("Riverwest moved differently")}</h3><p>{t("Riverwest was the only selected neighborhood with an overall increase: 606 incidents, up from 571.")}</p></article>
         <article><strong>{t("83 and 101")}</strong><h3>{t("Vehicle theft fell sharply")}</h3><p>{t("Bay View declined from 156 to 83 incidents; Walker’s Point declined from 180 to 101.")}</p></article>
         <article><strong>{t("4 areas")}</strong><h3>{t("Assault trends need context")}</h3><p>{t("Aggravated-assault counts rose in Bay View, Harambee, Riverwest and Silver City even as overall totals fell in most areas.")}</p></article>
       </aside>
@@ -41,7 +42,7 @@ export default function Safety() {
             <th scope="col">{t("Aggravated assault")}</th><th scope="col">{t("Robbery")}</th><th scope="col">{t("Burglary")}</th>
             <th scope="col">{t("Theft/larceny")}</th><th scope="col">{t("Vehicle theft")}</th></tr></thead>
           <tbody>{neighborhoodSummary.map(row => <tr key={row.name}><th scope="row">{row.name}</th>
-            <td>{row.incidents2026}</td><td className={row.change > 0 ? 'change-up' : 'change-down'}>{signed.format(row.change)}%</td>
+            <td>{row.incidents2026}</td><td className={row.change > 0 ? 'change-up' : 'change-down'}>{signedPercent(row.change)}</td>
             <td>{row.aggravatedAssault}</td><td>{row.robbery}</td><td>{row.burglary}</td><td>{row.theft}</td><td>{row.vehicleTheft}</td>
           </tr>)}</tbody>
         </table>
