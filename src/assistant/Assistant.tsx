@@ -1,9 +1,9 @@
 // Floating chat panel shared by the community and team assistants. Claude (Opus 5.5) built the conversation, storage and accessible layout.
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { supabase } from '../supabase'
+import { t, useLanguage, type Language } from '../languages/language'
 import { isStaffMode } from '../workspace'
 import { limits, type AgentName, type AgentReply } from './protocol'
-import { addReply, dropUnanswered, newChat, restore, updateAction, withKeys, type Stored, type StoredAction, type StoredTurn } from './conversation'
+import { addReply, dropUnanswered, newChat, requestBody, restore, updateAction, withKeys, type Stored, type StoredAction, type StoredTurn } from './conversation'
 import './assistant.css'
 
 export type { StoredAction }
@@ -14,17 +14,16 @@ function load(storageKey: string) {
   catch { return { state: newChat(), unsent: '' } }
 }
 
-async function ask(name: AgentName, turns: StoredTurn[], token?: string | null): Promise<AgentReply> {
-  let recent = turns.slice(-limits.turns)
-  if (recent[0]?.role === 'assistant') recent = recent.slice(1)
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'X-ComForce-Assistant': '1' }
+async function ask(name: AgentName, turns: StoredTurn[], language: Language, token?: string | null): Promise<AgentReply> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'X-ComForce-Assistant': '1', 'X-ComForce-Language': language }
   if (name === 'team' && isStaffMode()) {
+    const { supabase } = await import('../supabase')
     const { data } = await supabase.auth.getSession()
     if (data.session) headers.Authorization = `Bearer ${data.session.access_token}`
   }
   const response = await fetch(`/agent/${name}`, {
     method: 'POST', headers,
-    body: JSON.stringify({ messages: recent.map(({ role, text }) => ({ role, text })), token }),
+    body: requestBody(turns, token),
   })
   const body = await response.json().catch(() => null)
   // A non-JSON answer means the request never reached the assistant, for example while the dev server restarts.
@@ -49,6 +48,7 @@ interface Props {
 }
 
 export default function Assistant({ name, title, launcher, greeting, notice, suggestions, token, storageKey = `comforce.assistant.${name}.v1`, hidden, renderLauncher, renderAction }: Props) {
+  const language = useLanguage()
   const [initial] = useState(() => load(storageKey))
   const [state, setState] = useState<Stored>(initial.state)
   const [draft, setDraft] = useState(initial.unsent)
@@ -60,7 +60,9 @@ export default function Assistant({ name, title, launcher, greeting, notice, sug
   const panelId = `assistant-${name}`
   chatRef.current = state.chat
 
-  useEffect(() => { sessionStorage.setItem(storageKey, JSON.stringify(state)) }, [storageKey, state])
+  useEffect(() => {
+    try { sessionStorage.setItem(storageKey, JSON.stringify(state)) } catch { /* Keep this conversation in memory. */ }
+  }, [storageKey, state])
   useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight }) }, [state.turns.length, busy, state.open])
 
   function toggle(open: boolean) {
@@ -77,7 +79,7 @@ export default function Assistant({ name, title, launcher, greeting, notice, sug
     setError('')
     setBusy(true)
     try {
-      const { reply, actions } = await ask(name, turns, token)
+      const { reply, actions } = await ask(name, turns, language, token)
       setState(current => addReply(current, chat, { role: 'assistant', text: reply, actions: withKeys(actions) }))
     } catch (failure) {
       setState(current => dropUnanswered(current, chat))
@@ -104,41 +106,41 @@ export default function Assistant({ name, title, launcher, greeting, notice, sug
 
   if (hidden) return null
   return <><div className={`assistant assistant-${name}`}>
-    {state.open && <section className="assistant-panel" id={panelId} aria-label={title}>
+    {state.open && <section className="assistant-panel" id={panelId} aria-label={t(title)}>
       <header className="assistant-header">
-        <h2>{title}</h2>
+        <h2>{t(title)}</h2>
         <div>
-          {(state.turns.length > 0 || busy) && <button type="button" className="assistant-clear" onClick={clear}>New chat</button>}
-          <button type="button" className="assistant-close" aria-label={`Close ${title}`} onClick={() => toggle(false)}>×</button>
+          {(state.turns.length > 0 || busy) && <button type="button" className="assistant-clear" onClick={clear}>{t('New chat')}</button>}
+          <button type="button" className="assistant-close" aria-label={t('Close {title}', { title: t(title) })} onClick={() => toggle(false)}>×</button>
         </div>
       </header>
       <div className="assistant-log" ref={log} aria-live="polite" aria-busy={busy}>
-        <p className="assistant-message assistant-from-bot">{greeting}</p>
-        {state.turns.map((turn, t) => <div key={`${state.chat}-${t}`} className={'assistant-message ' + (turn.role === 'user' ? 'assistant-from-user' : 'assistant-from-bot')}>
-          <span className="assistant-visually-hidden">{turn.role === 'user' ? 'You said: ' : 'Assistant: '}</span>
+        <p className="assistant-message assistant-from-bot">{t(greeting)}</p>
+        {state.turns.map((turn, index) => <div key={`${state.chat}-${index}`} className={'assistant-message ' + (turn.role === 'user' ? 'assistant-from-user' : 'assistant-from-bot')}>
+          <span className="assistant-visually-hidden">{t(turn.role === 'user' ? 'You said' : 'Assistant')} · </span>
           <p>{turn.text}</p>
           {!!turn.actions?.length && <div className="assistant-actions">
-            {turn.actions.map((action, a) => <div key={a}>{renderAction(action, patch => setState(current => updateAction(current, state.chat, t, a, patch)))}</div>)}
+            {turn.actions.map((action, a) => <div key={a}>{renderAction(action, patch => setState(current => updateAction(current, state.chat, index, a, patch)))}</div>)}
           </div>}
         </div>)}
-        {busy && <p className="assistant-message assistant-from-bot assistant-typing" role="status">Thinking…</p>}
-        {!state.turns.length && !busy && <div className="assistant-suggestions" role="group" aria-label="Suggested questions">
-          {suggestions.map(text => <button type="button" key={text} onClick={() => void send(text)}>{text}</button>)}
+        {busy && <p className="assistant-message assistant-from-bot assistant-typing" role="status">{t('Thinking…')}</p>}
+        {!state.turns.length && !busy && <div className="assistant-suggestions" role="group" aria-label={t("Suggested questions")}>
+          {suggestions.map(text => <button type="button" key={text} onClick={() => void send(t(text))}>{t(text)}</button>)}
         </div>}
       </div>
-      {error && <p className="assistant-error" role="alert">{error}</p>}
+      {error && <p className="assistant-error" role="alert">{t(error)}</p>}
       <form className="assistant-form" onSubmit={submit}>
-        <label className="assistant-visually-hidden" htmlFor={`${panelId}-input`}>Message</label>
-        <textarea id={`${panelId}-input`} ref={input} rows={2} value={draft} maxLength={limits.characters} placeholder="Type a message"
+        <label className="assistant-visually-hidden" htmlFor={`${panelId}-input`}>{t('Message')}</label>
+        <textarea id={`${panelId}-input`} ref={input} rows={2} value={draft} maxLength={limits.characters} placeholder={t("Type a message")}
           onChange={event => setDraft(event.target.value)}
           onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(draft) } }}/>
-        <button type="submit" disabled={busy || !draft.trim()}>Send</button>
+        <button type="submit" disabled={busy || !draft.trim()}>{t('Send')}</button>
       </form>
-      <p className="assistant-notice">{notice}</p>
+      <p className="assistant-notice">{t(notice)}</p>
     </section>}
     {!renderLauncher && <button type="button" className="assistant-launcher" aria-expanded={state.open} aria-controls={state.open ? panelId : undefined}
       onClick={() => toggle(!state.open)}>
-      <span aria-hidden="true" className="assistant-icon" />{state.open ? 'Close chat' : launcher}
+      <span aria-hidden="true" className="assistant-icon" />{t(state.open ? 'Close chat' : launcher)}
     </button>}
   </div>{renderLauncher?.(state.open, toggle)}</>
 }

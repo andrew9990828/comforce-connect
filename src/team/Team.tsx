@@ -1,3 +1,4 @@
+import { t, demoText } from '../languages/language'
 // Staff workspace. Codex (GPT-6) built isolated case queues, scoped polling and history-aware direct actions.
 // Claude (Opus 5.5) added the team assistant.
 import { useEffect, useRef, useState } from 'react'
@@ -11,7 +12,7 @@ import TeamLogin from './TeamLogin'
 import ResidentPairing from './ResidentPairing'
 import TeamAssistant from '../assistant/TeamAssistant'
 import { clearTeamChats, scopeLabel } from '../assistant/conversation'
-import { actionLabel, dated, isOverdue, nextAction, outcome, partner, serviceLabels, statusLabels, type Action, type Need, type NeedStatus, type Service, type TeamRequest } from './queue'
+import { actionLabel, dated, isOverdue, needsAssignment, nextAction, outcome, partner, serviceLabels, statusLabels, type Action, type Need, type NeedStatus, type Service, type TeamRequest } from './queue'
 import './team.css'
 
 type Membership = Awaited<ReturnType<typeof staffContext>>
@@ -73,7 +74,7 @@ function Workspace({ staff }: { staff: boolean }) {
   }
 
   useEffect(() => {
-    if (preview) { setRequests(sampleRequests); setMembership({ token: null, residentToken: null, role: 'administrator', displayName: 'Preview', userId: null, canAssign: true, staff: [] }); return }
+    if (preview) { setRequests(sampleRequests); setMembership({ token: null, residentToken: null, role: 'administrator', displayName: 'Preview', userId: null, canAssign: true, staff: [], legacyApi: false }); return }
     let live = true
     let timer: ReturnType<typeof setTimeout>
     let pending: AbortController | undefined
@@ -93,7 +94,11 @@ function Workspace({ staff }: { staff: boolean }) {
         const result = await supabase.rpc('team_queue', { p_token: context.token }).abortSignal(controller.signal)
         if (!live) return
         if (result.error) {
-          if (['42501', 'PGRST301', 'PGRST303'].includes(result.error.code)) setRequests(null)
+          if (['42501', 'PGRST301', 'PGRST303'].includes(result.error.code)) {
+            membershipRef.current = null
+            setMembership(null)
+            setRequests(null)
+          }
           throw result.error
         }
         setRequests(result.data as TeamRequest[])
@@ -127,10 +132,10 @@ function Workspace({ staff }: { staff: boolean }) {
   const query = search.trim().toLowerCase()
   const visible = rows.filter(({ request, need }) =>
     (!service || need.service === service) && (!owner || need.owner === owner) && (status === 'all' || need.status === status) &&
-    (!query || [request.reference, request.neighborhood, request.description, serviceLabels[need.service], need.owner, partner(need)]
+    (!query || [request.reference, request.neighborhood, request.description, demoText(request.description, !!request.demo_fixture), serviceLabels[need.service], t(serviceLabels[need.service]), need.owner, partner(need)]
       .some(field => field?.toLowerCase().includes(query))))
     .sort((a, b) => Number(isOverdue(b.need, now)) - Number(isOverdue(a.need, now))
-      || Number(!b.need.owner) - Number(!a.need.owner)
+      || Number(needsAssignment(b.need)) - Number(needsAssignment(a.need))
       || ((a.need.follow_up ? Date.parse(a.need.follow_up) : Infinity) - (b.need.follow_up ? Date.parse(b.need.follow_up) : Infinity))
       || Date.parse(b.request.created_at) - Date.parse(a.request.created_at))
   const currentRequest = requests?.find(r => r.reference === selected.reference)
@@ -139,64 +144,64 @@ function Workspace({ staff }: { staff: boolean }) {
   const overdueCount = visible.filter(({ need }) => isOverdue(need, now)).length
   const unassignedCount = visible.filter(({ need }) => need.status === 'open' && !need.owner).length
   return <main className="team-page">
-    <div className="team-intro"><div><h1>Needs queue</h1>
-      <p>{staff ? membership ? `${membership.role === 'administrator' ? 'Administrator' : 'Caseworker'} workspace` : 'Staff workspace' : 'Private fictional workspace'} · Milwaukee</p></div>
+    <div className="team-intro"><div><h1>{t("Needs queue")}</h1>
+      <p>{staff ? membership ? t(membership.role === 'administrator' ? 'Administrator workspace' : 'Caseworker workspace') : t('Staff workspace') : t('Private fictional workspace')} · Milwaukee</p></div>
       {!!membership?.residentToken && <ResidentPairing token={membership.residentToken}/>}
     </div>
-    {error && <div role="alert" className="team-error">{error} <button onClick={refresh}>Retry</button></div>}
-    {requests === null ? !error && <p role="status">Opening workspace…</p> : <>
+    {error && <div role="alert" className="team-error">{t(error)} <button onClick={refresh}>{t("Retry")}</button></div>}
+    {requests === null ? !error && <p role="status">{t("Opening workspace…")}</p> : <>
       <div className="team-filters">
-        <label className="team-search">Search<input type="search" value={search} placeholder="Reference, need or neighborhood" onChange={e => setSearch(e.target.value)}/></label>
-        <label>Service<select value={service} onChange={e => setService(e.target.value)}>
-          <option value="">All services</option>{(Object.keys(serviceLabels) as Service[]).map(s => <option key={s} value={s}>{serviceLabels[s]}</option>)}
+        <label className="team-search">{t("Search")}<input type="search" value={search} placeholder={t("Reference, need or neighborhood")} onChange={e => setSearch(e.target.value)}/></label>
+        <label>{t("Service")}<select value={service} onChange={e => setService(e.target.value)}>
+          <option value="">{t("All services")}</option>{(Object.keys(serviceLabels) as Service[]).map(s => <option key={s} value={s}>{t(serviceLabels[s])}</option>)}
         </select></label>
         <button className="team-filter-toggle" aria-expanded={filtersOpen} aria-controls="team-extra-filters" onClick={() => setFiltersOpen(!filtersOpen)}>
-          {filtersOpen ? 'Hide filters' : 'More filters'}{!filtersOpen && (owner || status !== 'open') ? ' •' : ''}</button>
+          {filtersOpen ? t('Hide filters') : t('More filters')}{!filtersOpen && (owner || status !== 'open') ? ' •' : ''}</button>
       </div>
       {filtersOpen && <div className="team-extra" id="team-extra-filters">
-        <label>Owner<select value={owner} onChange={e => setOwner(e.target.value)}><option value="">All owners</option>{owners.map(name => <option key={name}>{name}</option>)}</select></label>
-        <label>Status<select value={status} onChange={e => setStatus(e.target.value as typeof status)}>
-          <option value="all">All statuses</option>{(Object.keys(statusLabels) as NeedStatus[]).map(s => <option key={s} value={s}>{statusLabels[s]}</option>)}
+        <label>{t("Owner")}<select value={owner} onChange={e => setOwner(e.target.value)}><option value="">{t("All owners")}</option>{owners.map(name => <option key={name}>{name}</option>)}</select></label>
+        <label>{t("Status")}<select value={status} onChange={e => setStatus(e.target.value as typeof status)}>
+          <option value="all">{t("All statuses")}</option>{(Object.keys(statusLabels) as NeedStatus[]).map(s => <option key={s} value={s}>{t(statusLabels[s])}</option>)}
         </select></label>
       </div>}
-      <section aria-label="Matching needs" className="team-queue">
-        <div className="queue-heading"><h2>{status === 'open' ? 'Open needs' : 'Matching needs'}</h2>
-          <span className="queue-counts" aria-live="polite">{visible.length} {visible.length === 1 ? 'need' : 'needs'}
-            {overdueCount > 0 && <strong className="team-flag flag-overdue">{overdueCount} overdue</strong>}
-            {unassignedCount > 0 && <strong className="team-flag flag-unassigned">{unassignedCount} unassigned</strong>}
+      <section aria-label={t("Matching needs")} className="team-queue">
+        <div className="queue-heading"><h2>{status === 'open' ? t('Open needs') : t('Matching needs')}</h2>
+          <span className="queue-counts" aria-live="polite">{t(visible.length === 1 ? '{count} need' : '{count} needs', { count: visible.length })}
+            {overdueCount > 0 && <strong className="team-flag flag-overdue">{overdueCount} {t('overdue')}</strong>}
+            {unassignedCount > 0 && <strong className="team-flag flag-unassigned">{unassignedCount} {t('unassigned')}</strong>}
           </span></div>
-        {!visible.length ? <div className="team-empty"><h3>No matching needs</h3><p>Try another search or adjust the filters.</p>
-          <button className="team-secondary" onClick={() => { setSearch(''); setService(''); setOwner(''); setStatus('all') }}>Clear filters</button>
+        {!visible.length ? <div className="team-empty"><h3>{t("No matching needs")}</h3><p>{t("Try another search or adjust the filters.")}</p>
+          <button className="team-secondary" onClick={() => { setSearch(''); setService(''); setOwner(''); setStatus('all') }}>{t("Clear filters")}</button>
         </div> : <>
-          <div className="team-columns" aria-hidden="true"><span>Need / case</span><span>Owner</span><span>Deadline · Chicago time</span><span>Next action</span></div>
+          <div className="team-columns" aria-hidden="true"><span>{t("Need / case")}</span><span>{t("Owner")}</span><span>{t("Deadline · Chicago time")}</span><span>{t("Next action")}</span></div>
           <ul className="team-rows">{visible.map(({ request, need }) => {
             const action = nextAction(need)
             const verified = need.history.find(e => e.action === 'check_in')
             return <li key={need.id} className="team-row" data-service={need.service}>
               <button className="team-need-link" onClick={() => openCase(request, need, null)}>
-                <strong>{serviceLabels[need.service]}</strong><small>{request.reference} · {request.neighborhood}</small>
+                <strong>{t(serviceLabels[need.service])}</strong><small>{request.reference} · {request.neighborhood === 'Unknown' ? t('Unknown neighborhood') : request.neighborhood}</small>
               </button>
-              <div className="team-row-owner"><span className="team-mobile-label">Owner</span>
-                <span className={!need.owner && need.status === 'open' ? 'team-flag flag-unassigned' : undefined}>{need.owner || 'Unassigned'}</span></div>
-              <div className="team-row-due"><span className="team-mobile-label">Deadline</span>
-                {isOverdue(need, now) && <span className="team-flag flag-overdue">Overdue</span>}
-                {need.status !== 'open' ? statusLabels[need.status] : need.follow_up ? dated(need.follow_up) : 'Unscheduled'}</div>
+              <div className="team-row-owner"><span className="team-mobile-label">{t("Owner")}</span>
+                <span className={needsAssignment(need) && need.status === 'open' ? 'team-flag flag-unassigned' : undefined}>{needsAssignment(need) && need.owner ? need.owner + ' · ' + t('Link account') : need.owner || t('Unassigned')}</span></div>
+              <div className="team-row-due"><span className="team-mobile-label">{t("Deadline")}</span>
+                {isOverdue(need, now) && <span className="team-flag flag-overdue">{t("Overdue")}</span>}
+                {need.status !== 'open' ? t(statusLabels[need.status]) : need.follow_up ? dated(need.follow_up) : t('Unscheduled')}</div>
               <div className="team-row-action">{action
                 ? <button className="team-next-action" onClick={() => openCase(request, need, action)}>{actionLabel(action, need)}</button>
                 : <span>{outcome(need)}</span>}</div>
               {need.service === 'family_support' && (partner(need) || verified) && <p className="team-update">
-                {partner(need) && <span><strong>Partner</strong> {partner(need)}</span>}
-                {verified && <span><strong>Verified follow-up</strong> {dated(verified.at)} · {verified.detail}{verified.source && ` · ${verified.source}`}</span>}</p>}
+                {partner(need) && <span><strong>{t("Partner")}</strong> {partner(need)}</span>}
+                {verified && <span><strong>{t("Verified follow-up")}</strong> {dated(verified.at)} · {demoText(verified.detail, !!verified.demo_fixture)}{verified.source && ` · ${demoText(verified.source, !!verified.demo_fixture)}`}</span>}</p>}
             </li>
           })}</ul>
         </>}
       </section>
-      {selected.reference && !currentRequest && <div role="status" className="team-error">This case is unavailable in this workspace. <button onClick={closeCase}>Return to queue</button></div>}
+      {selected.reference && !currentRequest && <div role="status" className="team-error">{t("This case is unavailable in this workspace.")} <button onClick={closeCase}>{t("Return to queue")}</button></div>}
     </>}
     <MissingPersonsMap/>
-    <footer className="team-footer">{staff ? <><a href={route('/team')}>Open fictional demo</a>
-      <button onClick={async () => { clearTeamChats(); const { error } = await supabase.auth.signOut({ scope:'local' }); if (error) setError('Sign-out failed. Try again.') }}>Sign out</button></>
-      : <a href={route('/team?mode=staff')}>Staff sign-in</a>}</footer>
+    <footer className="team-footer">{staff ? <><a href={route('/team')}>{t("Open fictional demo")}</a>
+      <button onClick={async () => { clearTeamChats(); const { error } = await supabase.auth.signOut({ scope:'local' }); if (error) setError('Sign-out failed. Try again.') }}>{t("Sign out")}</button></>
+      : <a href={route('/team?mode=staff')}>{t("Staff sign-in")}</a>}</footer>
     {!preview && requests && membership && <TeamAssistant token={membership.token} hidden={!!currentRequest} onSaved={refresh}
       scope={staff ? `staff-${membership.userId}` : `demo-${scopeLabel(membership.token ?? '')}`}
       onOpenCase={(reference, needId) => {
@@ -205,7 +210,7 @@ function Workspace({ staff }: { staff: boolean }) {
         if (request && need) openCase(request, need, null)
       }}/>}
     {!!currentRequest && !!currentNeed && membership && <CaseDetail request={currentRequest} need={currentNeed} initial={initialAction} token={membership.token}
-      owners={owners} partners={partners} canAssign={membership.canAssign} staffMembers={membership.staff} demo={!staff}
+      owners={owners} partners={partners} canAssign={membership.canAssign} staffMembers={membership.staff} demo={!staff} legacyApi={membership.legacyApi}
       onSelect={need => openCase(currentRequest, need, null)} onSaved={refresh} onClose={closeCase}/>}
   </main>
 }
@@ -223,7 +228,7 @@ export default function Team() {
     return () => data.subscription.unsubscribe()
   }, [staff])
   if (preview && isStaffMode()) return <TeamLogin/>
-  if (staff && account === undefined) return <main className="team-page" role="status">Checking staff session…</main>
+  if (staff && account === undefined) return <main className="team-page" role="status">{t("Checking staff session…")}</main>
   if (staff && !account) return <TeamLogin/>
   return <Workspace key={staff ? account : 'demo'} staff={staff}/>
 }

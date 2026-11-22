@@ -2,7 +2,7 @@
 // Claude (Opus 5.5) wrote the instructions, read tools and proposal checks. Reads use the caller's own credentials,
 // so the database decides what it can see. It never writes: proposals go back to the browser for a person to save.
 import type { Action, Need, NeedStatus, TeamRequest } from '../../src/team/queue'
-import { actionLabel, isOverdue, nextAction, outcome, partner, serviceLabels, statusLabels } from '../../src/team/queue'
+import { actionLabel, isOverdue, needsAssignment, nextAction, outcome, partner, serviceLabels, statusLabels } from '../../src/team/queue'
 import type { ClientAction } from '../../src/assistant/protocol'
 import { text, tool, type AgentDefinition, type AgentEnv } from './run'
 import { redact } from './privacy'
@@ -67,7 +67,7 @@ function needSummary(request: TeamRequest, need: Need, now: number) {
   const action = nextAction(need)
   return {
     reference: request.reference, need_id: need.id, service: serviceLabels[need.service], status: statusLabels[need.status],
-    neighborhood: request.neighborhood, owner: need.owner, follow_up_due: when(need.follow_up), overdue: isOverdue(need, now),
+    neighborhood: request.neighborhood, owner: needsAssignment(need) ? null : need.owner, follow_up_due: when(need.follow_up), overdue: isOverdue(need, now),
     next_action: action ? `${action}: ${actionLabel(action, need)}` : null, outcome: action ? null : redact(outcome(need)),
     partner: redact(partner(need)), opened: when(request.created_at),
   }
@@ -136,8 +136,8 @@ export function teamAgent(env: AgentEnv, caller: Caller, queue: TeamRequest[]): 
         const soon = open.filter(r => r.need.follow_up && Date.parse(r.need.follow_up) >= at && Date.parse(r.need.follow_up) < at + 48 * 3600_000)
         return { content: JSON.stringify({
           requests: requests.length, open_needs: open.length,
-          overdue: open.filter(r => isOverdue(r.need, at)).length, unassigned: open.filter(r => !r.need.owner).length,
-          open_by_service: tally(r => serviceLabels[r.need.service]), open_by_owner: tally(r => r.need.owner || 'Unassigned'),
+          overdue: open.filter(r => isOverdue(r.need, at)).length, unassigned: open.filter(r => needsAssignment(r.need)).length,
+          open_by_service: tally(r => serviceLabels[r.need.service]), open_by_owner: tally(r => needsAssignment(r.need) ? 'Unassigned' : r.need.owner || 'Unassigned'),
           open_by_neighborhood: tally(r => r.request.neighborhood),
           due_next_48_hours: soon.map(r => needSummary(r.request, r.need, at)),
         }) }
@@ -150,10 +150,10 @@ export function teamAgent(env: AgentEnv, caller: Caller, queue: TeamRequest[]): 
         const matches = rows().filter(({ request, need }) =>
           (!service || need.service === service) && (!status || need.status === status)
           && (!owner || need.owner?.toLowerCase() === owner) && (!neighborhood || request.neighborhood.toLowerCase() === neighborhood)
-          && (!input.overdue_only || isOverdue(need, at)) && (!input.unassigned_only || (need.status === 'open' && !need.owner))
+          && (!input.overdue_only || isOverdue(need, at)) && (!input.unassigned_only || (need.status === 'open' && needsAssignment(need)))
           && (!search || [request.reference, request.description, need.owner, partner(need), serviceLabels[need.service]]
             .some(field => field?.toLowerCase().includes(search))))
-          .sort((a, b) => Number(isOverdue(b.need, at)) - Number(isOverdue(a.need, at)) || Number(!b.need.owner) - Number(!a.need.owner)
+          .sort((a, b) => Number(isOverdue(b.need, at)) - Number(isOverdue(a.need, at)) || Number(needsAssignment(b.need)) - Number(needsAssignment(a.need))
             || (a.need.follow_up ? Date.parse(a.need.follow_up) : Infinity) - (b.need.follow_up ? Date.parse(b.need.follow_up) : Infinity))
         return { content: JSON.stringify({ total: matches.length, needs: matches.slice(0, 25).map(r => needSummary(r.request, r.need, at)) }) }
       }
@@ -167,7 +167,7 @@ export function teamAgent(env: AgentEnv, caller: Caller, queue: TeamRequest[]): 
         const found = rows().find(r => r.need.id === input.need_id)
         if (!found) return { content: 'No need with that id. Look the case up first.', isError: true }
         actions.push({ type: 'open_case', reference: found.request.reference, needId: found.need.id,
-          label: `Open ${found.request.reference} · ${serviceLabels[found.need.service]}` })
+          label: `Open ${found.request.reference} · ${serviceLabels[found.need.service]}`, service: serviceLabels[found.need.service] })
         return { content: 'The button is shown below your reply.' }
       }
       // Verified staff assign by staff account (p_assignee) in the case sheet, which only administrators can do. Demo workspaces assign by name.

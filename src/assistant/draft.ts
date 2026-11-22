@@ -8,20 +8,21 @@ const key = 'comforce.assistant.draft.v1'
 export const draftEvent = 'comforce:assistant-draft'
 
 export function offerDraft(draft: RequestDraft) {
-  sessionStorage.setItem(key, JSON.stringify(draft))
+  try { sessionStorage.setItem(key, JSON.stringify(draft)) } catch { return false }
   const onForm = location.pathname.replace(/\/+$/, '') === route('/request') && !new URLSearchParams(location.search).has('source')
   if (onForm) window.dispatchEvent(new Event(draftEvent))
   else location.assign(route('/request'))
+  return true
 }
 
 // Reads and removes the waiting draft, keeping only values the form accepts.
 export function takeDraft(): RequestDraft | null {
-  const saved = sessionStorage.getItem(key)
-  sessionStorage.removeItem(key)
   try {
+    const saved = sessionStorage.getItem(key)
+    sessionStorage.removeItem(key)
     const draft = JSON.parse(saved || 'null')
     if (!draft || !Array.isArray(draft.services)) return null
-    const services = draft.services.filter((s: unknown): s is Service => typeof s === 'string' && s in serviceLabels)
+    const services = draft.services.filter((s: unknown): s is Service => typeof s === 'string' && Object.hasOwn(serviceLabels, s))
     if (!services.length) return null
     const neighborhood = draft.neighborhood === 'Unknown' || neighborhoods.includes(draft.neighborhood) ? draft.neighborhood : ''
     return { services, description: typeof draft.description === 'string' ? draft.description.slice(0, 800) : '', neighborhood }

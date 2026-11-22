@@ -24,7 +24,8 @@ h1, h2, h3, p { margin-top: 0; }
 .brand-mark i { display: block; width: 5px; transform: skewY(-24deg); height: 13px; background: var(--surface); }
 .brand-mark i:nth-child(2) { height: 21px; background: var(--line); }
 .brand-mark i:last-child { height: 17px; }
-.site-nav { display: flex; gap: clamp(.8rem, 2.5vw, 2.1rem); align-self: stretch; margin-left: auto; }
+.site-nav { display: flex; align-items: center; gap: clamp(.8rem, 1.7vw, 1.5rem); margin-left: auto; }
+.site-nav a:hover { color: var(--teal); }
 .site-nav a { display: flex; align-items: center; min-height: 44px; font-size: .9rem; font-weight: 620; text-decoration: none; color: var(--muted); padding-top: 3px; border-bottom: 3px solid transparent; }
 .site-nav a[aria-current] { border-color: var(--teal); color: var(--lake); }
 .staff-header { background: var(--lake); color: var(--surface); border: 0; }
@@ -41,21 +42,15 @@ h1, h2, h3, p { margin-top: 0; }
 .skip-link:focus { top: 1rem; }
 .setup-notice { padding: .65rem 4vw; background: var(--surface); color: var(--ink); font-size: .92rem; }
 .missing-page { max-width: 70rem; margin: 4rem auto; padding: 0 1rem; }
-@media (max-width: 760px) {
-  .site-bar { min-height: 64px; gap: .8rem; }
-  .brand { font-size: 1.25rem; }
-  .site-nav { gap: 1rem; }
-  .site-nav a { font-size: .85rem; }
-  .staff-header .site-bar { flex-wrap: wrap; padding-top: .7rem; padding-bottom: .4rem; gap: .35rem .75rem; }
-  .staff-wordmark { font-size: .86rem; padding-left: .7rem; }
-  .staff-header .site-nav { flex-basis: 100%; }
-  .staff-header .staff-log { margin-left: auto; }
-}
-@media (max-width: 545px) {
-  .site-header:not(.staff-header) .site-bar { flex-wrap: wrap; gap: 0; padding-top: .65rem; }
-  .site-header:not(.staff-header) .site-nav { flex-basis: 100%; }
+.language-select { display: inline-flex; align-items: center; gap: .45rem; font-size: .86rem; font-weight: 650; white-space: nowrap; }
+.language-select select { min-height: 44px; padding: .35rem .5rem; color: var(--lake); background: var(--ivory); border: 1px solid #829c96; border-radius: 5px; }
+.site-bar > .language-select { flex: none; }
+.case-header .language-select { margin-left: auto; }
+@media (max-width: 36rem) {
+  .site-bar > .language-select { font-size: .8rem; }
+  .site-bar > .language-select select { min-height: 40px; }
+  .case-header .language-select { flex-direction: column; gap: 0; font-size: .75rem; }
 }
 @media (max-width: 375px) {
-  .brand { gap: .4rem; font-size: 1.05rem; }
   .site-footer { flex-direction: column; }
 }

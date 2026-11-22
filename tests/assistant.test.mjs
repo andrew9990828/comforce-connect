@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { createServer } from 'vite'
 
-let vite, conversation, time, handler
+let vite, conversation, time, handler, pages, community, draft
 before(async () => {
   // Own cache folder and no dependency scan, so running tests never invalidates a running npm run dev.
   vite = await createServer({ configFile: false, cacheDir: 'node_modules/.vite-tests', optimizeDeps: { noDiscovery: true, include: [] },
@@ -12,6 +12,9 @@ before(async () => {
   conversation = await vite.ssrLoadModule('/src/assistant/conversation.ts')
   time = await vite.ssrLoadModule('/server/agents/time.ts')
   handler = await vite.ssrLoadModule('/server/agents/handler.ts')
+  pages = await vite.ssrLoadModule('/functions/agent/[name].ts')
+  community = (await vite.ssrLoadModule('/server/agents/community.ts')).communityAgent
+  draft = await vite.ssrLoadModule('/src/assistant/draft.ts')
 })
 after(() => vite.close())
 
@@ -140,14 +143,16 @@ test('the model never receives planted contact details, and fulfillment cards na
   }
   try {
     const request = new Request('http://localhost/agent/team', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ComForce-Assistant': '1' },
-      body: JSON.stringify({ messages: [{ role: 'user', text: 'Tell me about CF-1001 and mark it delivered.' }], token: 'a'.repeat(64) }),
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ComForce-Assistant': '1', 'X-ComForce-Language': 'pl' },
+      body: JSON.stringify({ messages: [{ role: 'user', text: 'The resident gave me message@example.test. Tell me about CF-1001 and mark it delivered.' }], token: 'a'.repeat(64) }),
     })
     const response = await handler.handleAgentRequest('team', request, { OPENAI_API_KEY: 'test', SUPABASE_URL: 'http://supabase.test', SUPABASE_PUBLISHABLE_KEY: 'test' })
     const body = await response.json()
     assert.equal(response.status, 200, JSON.stringify(body))
     assert.equal(sent.length, 6, 'Every scripted model call happened.')
+    assert.match(JSON.parse(sent[0]).messages[0].content, /selected site language \(Polski\)/)
     const payload = sent.join('\n')
+    assert.ok(!payload.includes('message@example.test'), 'Staff chat should redact typed contact details too.')
     // The closed case's outcome, partner and agency reached the model through both tools, with the emails replaced.
     const toolResult = id => JSON.parse(sent.at(-1)).messages.find(m => m.role === 'tool' && m.tool_call_id === id).content
     for (const id of ['c4', 'c5']) {
@@ -163,4 +168,47 @@ test('the model never receives planted contact details, and fulfillment cards na
     assert.equal(card.partner, 'Riverwest Pantry')
     assert.equal(card.referral, 'ref-1')
   } finally { globalThis.fetch = realFetch }
+})
+
+
+test('the public assistant links to resident workflows without reading the queue', async () => {
+  for (const [page, href] of Object.entries({ status: '/status', help_out: '/help-out', safety: '/safety' })) {
+    const actions = []
+    await community.runTool('link_to_page', { page }, actions)
+    assert.equal(actions[0].href, href)
+  }
+  const actions = []
+  await community.runTool('prefill_request', { services: ['food'], description: 'Email resident@example.test for groceries.', neighborhood: '' }, actions)
+  assert.equal(actions[0].description, 'Email [email removed] for groceries.')
+})
+
+test('long multilingual chat retains the latest question and fits the Pages byte limit', async () => {
+  const text = '邻'.repeat(2000)
+  const turns = Array.from({ length: 29 }, (_, i) => ({ role: i % 2 ? 'assistant' : 'user', text }))
+  const body = conversation.requestBody(turns, 'a'.repeat(64))
+  const { messages } = JSON.parse(body)
+  assert.ok(messages.length < turns.length && messages.length > 1)
+  assert.equal(messages[0].role, 'user')
+  assert.deepEqual(messages, turns.slice(-messages.length))
+  assert.ok(Buffer.byteLength(body) <= handler.maxBodyBytes)
+
+  // Fetch bodies from the Pages runtime can arrive without a Content-Length header.
+  const request = new Request('https://example.test/agent/community', { method: 'POST',
+    headers: { 'X-ComForce-Assistant': '1' }, body: JSON.stringify({ messages: turns }) })
+  assert.equal(request.headers.get('Content-Length'), null)
+  const res = await pages.onRequest({ request, params: { name: 'community' }, env: { OPENAI_API_KEY: 'unused' } })
+  assert.equal(res.status, 413)
+})
+
+test('unavailable tab storage still allows intake to open and staff to sign out', () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage')
+  Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, get() { throw new Error('Storage unavailable') } })
+  try {
+    assert.equal(draft.takeDraft(), null)
+    assert.equal(draft.offerDraft({ services: ['food'], description: '', neighborhood: '' }), false)
+    assert.doesNotThrow(() => conversation.clearTeamChats())
+  } finally {
+    if (original) Object.defineProperty(globalThis, 'sessionStorage', original)
+    else delete globalThis.sessionStorage
+  }
 })

@@ -103,10 +103,6 @@ begin
   select id into strict req from comforce.requests where submission_key='42667ca8-5125-4db0-834e-000000000003';
   select id into strict food from comforce.needs where request_id=req and service='food';
   select id into strict ride from comforce.needs where request_id=req and service='transportation';
-  begin
-    perform public.update_need(food,'direct');
-    raise exception 'Update without an operation key was accepted';
-  exception when invalid_parameter_value then null; end;
   perform public.update_need(food,'direct',p_key=>direct_key);
   perform public.update_need(food,'direct',p_key=>direct_key);
   perform public.update_need(food,'fulfill',p_key=>food_fulfill_key);
@@ -152,10 +148,20 @@ update comforce.referrals set sent_at='2049-12-28 10:00-06',
   declined_at=case when declined_at is not null then '2049-12-29 10:00-06'::timestamptz end
 where need_id in (select n.id from comforce.needs n join comforce.requests r on n.request_id=r.id
                   where r.submission_key='42667ca8-5125-4db0-834e-000000000003');
+set local role anon;
+do $$ begin
+  perform set_config('comforce_test.template_totals', (
+    select jsonb_agg(to_jsonb(i) order by i.month,i.neighborhood)::text from public.public_impact(null,true) i
+  ),true);
+end $$;
+reset role;
 set local role authenticated;
 do $$
 declare totals record;
 begin
+  assert not exists(select 1 from public.public_impact(null,true) where month='2049-12');
+  assert (select jsonb_agg(to_jsonb(i) order by i.month,i.neighborhood) from public.public_impact(null,true) i)
+    = current_setting('comforce_test.template_totals')::jsonb;
   select * into strict totals from public.public_impact() where month='2049-12' and neighborhood is null;
   assert (totals.requests_helped,totals.needs_fulfilled,totals.referrals_made,totals.food_fulfilled)
          = (1,2,2,1);
@@ -182,69 +188,131 @@ select 'ok 7 - closed-unmet needs preserve their reason and contribute zero fulf
 
 set local role authenticated;
 do $$
-declare queue jsonb; ref text; assigned_open uuid; assign_key uuid := gen_random_uuid();
+declare queue jsonb; assigned_ref text; mixed_ref text;
 begin
   queue := public.team_queue();
   assert exists(select 1 from jsonb_array_elements(queue) c
                 where c->>'description'='Fictional test' and jsonb_array_length(c->'needs')=2);
-  ref := public.submit_request(gen_random_uuid(),array['shelter'],'Assigned caseworker test','Unknown',
+  assigned_ref := public.submit_request(gen_random_uuid(),array['shelter'],'Assigned caseworker test','Unknown',
     'email','assigned@example.invalid','web');
-  -- The authenticated role cannot read the private comforce schema, so find the need through the staff queue.
-  select (n->>'id')::uuid into strict assigned_open
-    from jsonb_array_elements(public.team_queue()) c, jsonb_array_elements(c->'needs') n
-    where c->>'reference'=ref;
-  perform public.update_need(assigned_open,'assign',p_assignee=>'42667ca8-5125-4db0-834e-000000000004',p_key=>assign_key);
-  perform set_config('comforce_test.assigned_open',assigned_open::text,true);
+  mixed_ref := public.submit_request(gen_random_uuid(),array['transportation','family_support'],
+    'Private sibling support','Unknown','phone','414-555-0188','call',p_family=>jsonb_build_object(
+      'support','Private sibling support','safe_contact','Do not leave voicemail',
+      'agency','Private agency','agency_reference','PRIVATE-42'));
+  perform set_config('comforce_test.assigned_ref',assigned_ref,true);
+  perform set_config('comforce_test.mixed_ref',mixed_ref,true);
 end $$;
 reset role;
-select 'ok 8 - staff queue includes both sibling needs';
 
--- A caseworker receives only assigned needs, even when another need belongs to the same request.
-set local request.jwt.claims = '{"sub":"42667ca8-5125-4db0-834e-000000000004","email":"caseworker-test@example.invalid","role":"authenticated"}';
+-- Fixture lookup stays privileged and selects each exact need before staff-role calls begin.
 do $$
-declare queue jsonb; context jsonb; ride uuid; food uuid; direct_key uuid := gen_random_uuid();
-  assigned_open uuid := current_setting('comforce_test.assigned_open')::uuid;
+declare assigned_open uuid; mixed_transport uuid; mixed_family uuid; food uuid;
 begin
-  -- Test 8 also assigned assigned_open to this caseworker, so exclude it to find the ride from test 5.
-  select id into strict ride from comforce.needs
-    where assigned_staff_id='42667ca8-5125-4db0-834e-000000000004' and id<>assigned_open;
+  select n.id into strict assigned_open from comforce.needs n join comforce.requests r on r.id=n.request_id
+    where r.reference=current_setting('comforce_test.assigned_ref') and n.service='shelter';
+  select n.id into strict mixed_transport from comforce.needs n join comforce.requests r on r.id=n.request_id
+    where r.reference=current_setting('comforce_test.mixed_ref') and n.service='transportation';
+  select n.id into strict mixed_family from comforce.needs n join comforce.requests r on r.id=n.request_id
+    where r.reference=current_setting('comforce_test.mixed_ref') and n.service='family_support';
   select n.id into strict food from comforce.needs n join comforce.requests r on r.id=n.request_id
     where r.submission_key='42667ca8-5125-4db0-834e-000000000003' and n.service='food';
+  perform set_config('comforce_test.assigned_open',assigned_open::text,true);
+  perform set_config('comforce_test.mixed_transport',mixed_transport::text,true);
+  perform set_config('comforce_test.mixed_family',mixed_family::text,true);
+  perform set_config('comforce_test.food',food::text,true);
+end $$;
+
+set local role authenticated;
+do $$
+declare assign_key uuid := gen_random_uuid();
+begin
+  perform public.update_need(current_setting('comforce_test.assigned_open')::uuid,'assign',
+    p_assignee=>'42667ca8-5125-4db0-834e-000000000004',p_key=>assign_key);
+  -- Compatibility for an already-open pre-role tab: owner label and no operation key.
+  perform public.update_need(current_setting('comforce_test.mixed_transport')::uuid,'assign','Test Caseworker');
+end $$;
+reset role;
+do $$
+begin
+  assert (select owner='Test Caseworker'
+      and assigned_staff_id='42667ca8-5125-4db0-834e-000000000004'
+    from comforce.needs where id=current_setting('comforce_test.mixed_transport')::uuid);
+  assert exists(select 1 from comforce.history
+    where need_id=current_setting('comforce_test.mixed_transport')::uuid
+      and action='assign' and operation_key is not null);
+end $$;
+select 'ok 8 - staff fixtures use exact private lookups and legacy assignment tabs remain compatible';
+
+-- A caseworker receives only assigned needs, and request-level family details follow the family need.
+set local request.jwt.claims = '{"sub":"42667ca8-5125-4db0-834e-000000000004","email":"caseworker-test@example.invalid","role":"authenticated"}';
+set local role authenticated;
+do $$
+declare queue jsonb; context jsonb; phone_ref text; direct_key uuid := gen_random_uuid();
+  mixed_case jsonb;
+begin
   queue := public.team_queue();
-  assert jsonb_array_length(queue)=2;
+  select q into strict mixed_case from jsonb_array_elements(queue) q
+    where q->>'reference'=current_setting('comforce_test.mixed_ref');
+  assert jsonb_array_length(mixed_case->'needs')=1;
+  assert mixed_case->'needs'->0->>'service'='transportation';
+  assert mixed_case->'family_support'='null'::jsonb;
+  assert mixed_case->>'description'='' and position('Private sibling support' in mixed_case::text)=0;
   assert not exists(select 1 from jsonb_array_elements(queue) q, jsonb_array_elements(q->'needs') n
-                    where (n->>'id')::uuid=food);
+                    where (n->>'id')::uuid=current_setting('comforce_test.food')::uuid);
   assert exists(select 1 from jsonb_array_elements(queue) q, jsonb_array_elements(q->'needs') n
-                where (n->>'id')::uuid=ride);
-  assert exists(select 1 from jsonb_array_elements(queue) q, jsonb_array_elements(q->'needs') n
-                where (n->>'id')::uuid=assigned_open);
+                where (n->>'id')::uuid=current_setting('comforce_test.assigned_open')::uuid);
   context := public.staff_context();
   assert context->>'role'='caseworker' and context->>'display_name'='Test Caseworker'
     and context->>'can_assign'='false' and jsonb_array_length(context->'staff')=0;
   begin
-    perform public.update_need(food,'direct');
+    perform public.update_need(current_setting('comforce_test.food')::uuid,'direct',p_key=>gen_random_uuid());
     raise exception 'caseworker altered an unassigned sibling need';
   exception when insufficient_privilege then null; end;
   begin
-    perform public.update_need(ride,'assign',p_assignee=>'42667ca8-5125-4db0-834e-000000000001');
+    perform public.update_need(current_setting('comforce_test.mixed_transport')::uuid,'assign',
+      p_assignee=>'42667ca8-5125-4db0-834e-000000000001',p_key=>gen_random_uuid());
     raise exception 'caseworker reassigned a case';
   exception when insufficient_privilege then null; end;
-  perform public.update_need(assigned_open,'direct',p_key=>direct_key);
-  assert exists(select 1 from comforce.history
-    where need_id=assigned_open and action='direct'
-      and actor_uid='42667ca8-5125-4db0-834e-000000000004' and actor_role='caseworker');
+  perform public.update_need(current_setting('comforce_test.assigned_open')::uuid,'direct',p_key=>direct_key);
+  phone_ref := public.submit_request(gen_random_uuid(),array['youth'],'Caseworker phone receipt','Unknown',
+    'phone','414-555-0177','call');
+  queue := public.team_queue();
+  assert exists(select 1 from jsonb_array_elements(queue) q, jsonb_array_elements(q->'needs') n
+    where q->>'reference'=phone_ref and n->>'owner'='Test Caseworker'
+      and (n->>'assigned_staff_id')::uuid='42667ca8-5125-4db0-834e-000000000004');
+  perform set_config('comforce_test.phone_ref',phone_ref,true);
 end $$;
-select 'ok 9 - caseworkers see only assigned needs and cannot assign cases';
+reset role;
+do $$
+begin
+  assert exists(select 1 from comforce.history
+    where need_id=current_setting('comforce_test.assigned_open')::uuid and action='direct'
+      and actor_uid='42667ca8-5125-4db0-834e-000000000004' and actor_role='caseworker');
+  assert exists(select 1 from comforce.requests r join comforce.needs n on n.request_id=r.id
+    where r.reference=current_setting('comforce_test.phone_ref')
+      and r.submitted_by='42667ca8-5125-4db0-834e-000000000004'
+      and n.assigned_staff_id='42667ca8-5125-4db0-834e-000000000004');
+end $$;
+select 'ok 9 - caseworkers see assigned needs without sibling family details and retain phone intake access';
 
 set local request.jwt.claims = '{"sub":"42667ca8-5125-4db0-834e-000000000001","email":"worker-test@example.invalid","role":"authenticated"}';
+set local role authenticated;
 do $$
-declare context jsonb;
+declare context jsonb; queue jsonb; mixed_case jsonb;
 begin
   context := public.staff_context();
   assert context->>'role'='administrator' and context->>'can_assign'='true';
-  -- Other confirmed staff, such as a local Von sign-in from the setup guide, may also be listed.
   assert (select count(*) from jsonb_array_elements(context->'staff') s where s->>'user_id' in
     ('42667ca8-5125-4db0-834e-000000000001','42667ca8-5125-4db0-834e-000000000004'))=2;
+  queue := public.team_queue();
+  select q into strict mixed_case from jsonb_array_elements(queue) q
+    where q->>'reference'=current_setting('comforce_test.mixed_ref');
+  assert mixed_case->'family_support'->>'safe_contact'='Do not leave voicemail';
+  assert mixed_case->>'description'='Private sibling support';
+end $$;
+reset role;
+do $$
+begin
   assert not exists(select 1 from comforce.audit_log where actor_uid is null);
   assert exists(select 1 from comforce.audit_log
     where actor_uid='42667ca8-5125-4db0-834e-000000000001' and action='request_submit');
@@ -254,5 +322,5 @@ begin
   assert exists(select 1 from comforce.audit_log
     where actor_uid='42667ca8-5125-4db0-834e-000000000004' and actor_role='caseworker' and action='direct');
 end $$;
-select 'ok 10 - administrators receive the staff directory and every real action is attributable';
+select 'ok 10 - administrators receive the full case and every real action is attributable';
 rollback;

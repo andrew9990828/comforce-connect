@@ -16,9 +16,9 @@ export function validateLookup(reference: string, check: string) {
   const errors: { reference?: string; check?: string } = {}
   if (!normalizeReference(reference)) errors.reference = 'Enter the reference from your confirmation, such as CF-1042.'
   const value = check.trim()
-  const isEmail = value.includes('@')
+  const phoneDigits = value.replace(/[ ()-]/g, '')
   if (!value) errors.check = 'Enter the last 4 digits of your phone number, or your email address.'
-  else if (!isEmail && !/^\d{4}$/.test(value.replace(/\D/g, ''))) errors.check = 'Enter exactly 4 digits, or the email address you gave us.'
+  else if (!/^\d{4}$/.test(phoneDigits) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) errors.check = 'Enter exactly 4 digits, or the email address you gave us.'
   return errors
 }
 
@@ -27,13 +27,13 @@ export const stageLabels: Record<Stage, string> = {
   received: 'Received', in_progress: 'Someone is on it', delivered: 'Delivered', closed: 'Could not be completed',
 }
 
-export function stageMessage(need: NeedStatus) {
+export function stageMessageKey(need: NeedStatus) {
   if (need.stage === 'delivered') return need.provider === 'ComForce'
     ? 'ComForce delivered this help.'
-    : `Delivered by ${need.provider}, coordinated by ComForce.`
+    : 'Delivered by {provider}, coordinated by ComForce.'
   if (need.stage === 'closed') return 'We weren’t able to complete this one. A team member can talk through other options with you.'
   if (need.stage === 'in_progress') return need.partner
-    ? `ComForce connected you with ${need.partner}. They or our team will reach out.`
+    ? 'ComForce connected you with {partner}. They or our team will reach out.'
     : 'A ComForce team member is working on this.'
   return 'We have your request. A team member will review it soon.'
 }

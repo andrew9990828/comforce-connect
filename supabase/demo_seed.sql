@@ -13,8 +13,9 @@ declare
   provider_name text;
   family jsonb := '{"support":"Talk through family support options.","safe_contact":"Call after school. Leave no voicemail."}';
 begin
-  insert into comforce.workspaces(id,staff_digest,resident_digest)
-  values(template,sha256(convert_to(gen_random_uuid()::text,'UTF8')),sha256(convert_to(gen_random_uuid()::text,'UTF8')))
+  insert into comforce.workspaces(id,staff_digest,resident_digest,created_at,expires_at)
+  values(template,sha256(convert_to(gen_random_uuid()::text,'UTF8')),sha256(convert_to(gen_random_uuid()::text,'UTF8')),
+         '-infinity','infinity')
   on conflict(id) do nothing;
   if not found then return; end if;
 

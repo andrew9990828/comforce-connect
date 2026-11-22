@@ -69,7 +69,6 @@ html .team-columns {background:var(--wash);color:var(--lake);}
 html .team-next-action {color:var(--teal);border-color:var(--line);}
 html .team-dialog {border-radius:var(--curve);}
 
-}
 html .report-title, html .intake-page h1, html .team-page h1 {
   font-family: var(--ui-font);
   font-weight: 600;

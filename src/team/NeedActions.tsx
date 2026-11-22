@@ -1,10 +1,12 @@
+import { firstFieldError } from '../languages/formValidation'
+import { t } from '../languages/language'
 // Case action editor. Codex (GPT-6) implemented direct queue actions and retry-safe follow-up outcomes.
 import { useRef, useState, type FormEvent } from 'react'
 import { preview } from '../preview/location'
 import { supabase } from '../supabase'
-import { submissionKey } from '../intake/form'
 import type { StaffMember } from '../workspace'
 import { actionLabel, dated, nextAction, type Action, type Need } from './queue'
+import { pendingOperation } from './pendingOperation'
 
 const actions: Action[] = ['assign', 'partner_contact', 'follow_up', 'check_in', 'refer', 'decline', 'direct', 'fulfill', 'unmet']
 function localTime(instant: Date) {
@@ -20,10 +22,11 @@ interface Props {
   canAssign: boolean
   staffMembers: StaffMember[]
   demo: boolean
+  legacyApi: boolean
   onSaved: () => void
 }
 
-export default function NeedActions({ need, token, initial, owners, partners, canAssign, staffMembers, demo, onSaved }: Props) {
+export default function NeedActions({ need, token, initial, owners, partners, canAssign, staffMembers, demo, legacyApi, onSaved }: Props) {
   const activeRefs = need.referrals.filter(r => !r.declined_at)
   const [action, setAction] = useState<Action | null>(initial)
   const [value, setValue] = useState(initial === 'assign' ? (need.owner || '') : '')
@@ -35,7 +38,6 @@ export default function NeedActions({ need, token, initial, owners, partners, ca
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const operation = useRef<{ key: string; payload: string } | null>(null)
   const saving = useRef(false)
   const primary = nextAction(need)
 
@@ -49,14 +51,15 @@ export default function NeedActions({ need, token, initial, owners, partners, ca
     setSource('')
     setWhen(next === 'check_in' ? localTime(new Date()) : '')
     setAttempt(next === 'decline' ? activeRefs[0]?.id || '' : '')
-    operation.current = null
   }
-  async function save(event: FormEvent) {
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!action || saving.current) return
+    const invalid = firstFieldError(event.currentTarget)
+    if (invalid) { setError(invalid); return }
     const params: Record<string, string | null> = { p_token: token, p_need: need.id, p_action: action }
     if (action === 'assign') {
-      if (demo) params.p_value = value.trim() || null
+      if (demo || legacyApi) params.p_value = value.trim() || null
       else params.p_assignee = assignee || null
     } else if (['refer', 'unmet', 'partner_contact', 'check_in'].includes(action)) {
       params.p_value = value.trim()
@@ -74,15 +77,15 @@ export default function NeedActions({ need, token, initial, owners, partners, ca
     }
     if ((action === 'decline' || action === 'fulfill') && attempt) params.p_referral = attempt
     if (preview) { setNotice('This design preview uses read-only sample cases.'); return }
-    const payload = JSON.stringify(params)
-    if (operation.current?.payload !== payload) operation.current = { key: submissionKey(), payload }
-    params.p_key = operation.current.key
     saving.current = true
     setPending(true)
     setError('')
     try {
+      const operation = pendingOperation(params)
+      params.p_key = operation.key
       const { error } = await supabase.rpc('update_need', params)
       if (error) throw error
+      operation.confirm()
       choose(null)
       setNotice(action === 'check_in' ? 'Follow-up recorded. This need remains open.' : 'Update saved.')
       onSaved()
@@ -99,51 +102,51 @@ export default function NeedActions({ need, token, initial, owners, partners, ca
     && (a !== 'decline' || activeRefs.length > 0)
     && (a !== 'check_in' || need.follow_up)
     && (a !== 'partner_contact' || need.service === 'family_support'))
-  return <section className="case-actions" aria-label="Update this need">
-    {need.status === 'open' && (action ? <form onSubmit={save}>
+  return <section className="case-actions" aria-label={t("Update this need")}>
+    {need.status === 'open' && (action ? <form noValidate onSubmit={save}>
       <fieldset disabled={pending}>
         <legend>{actionLabel(action, need)}</legend>
-        {action === 'assign' && (demo ? <label>Worker name
+        {action === 'assign' && (demo || legacyApi ? <label>{t("Worker name")}
           <input list="case-workers" value={value} maxLength={80} onChange={e => setValue(e.target.value)} required={!need.owner} autoFocus />
           <datalist id="case-workers">{owners.map(name => <option key={name} value={name}/>)}</datalist>
-        </label> : <label>Assigned staff member
+        </label> : <label>{t("Assigned staff member")}
           <select value={assignee} onChange={e => setAssignee(e.target.value)} autoFocus>
-            <option value="">Unassigned</option>
+            <option value="">{t("Unassigned")}</option>
             {staffMembers.map(member => <option value={member.user_id} key={member.user_id}>
-              {member.display_name} · {member.role === 'administrator' ? 'Administrator' : 'Caseworker'}
+              {member.display_name} · {member.role === 'administrator' ? t('Administrator') : t('Caseworker')}
             </option>)}
           </select>
         </label>)}
-        {(action === 'refer' || action === 'partner_contact') && <label>Partner name
+        {(action === 'refer' || action === 'partner_contact') && <label>{t("Partner name")}
           <input list="case-partners" value={value} maxLength={100} onChange={e => setValue(e.target.value)} required autoFocus />
           <datalist id="case-partners">{partners.map(name => <option key={name} value={name}/>)}</datalist>
         </label>}
         {action === 'check_in' && <>
-          <label>Follow-up outcome<textarea value={value} maxLength={500} onChange={e => setValue(e.target.value)} required autoFocus rows={2} /></label>
-          <label>Verified by<input value={source} maxLength={120} onChange={e => setSource(e.target.value)} placeholder="e.g. Family member by phone" required /></label>
+          <label>{t("Follow-up outcome")}<textarea value={value} maxLength={500} onChange={e => setValue(e.target.value)} required autoFocus rows={2} /></label>
+          <label>{t("Verified by")}<input value={source} maxLength={120} onChange={e => setSource(e.target.value)} placeholder={t("e.g. Family member by phone")} required /></label>
         </>}
-        {(action === 'check_in' || action === 'follow_up') && <label>{action === 'check_in' ? 'Completed at' : 'Follow-up due'}
+        {(action === 'check_in' || action === 'follow_up') && <label>{action === 'check_in' ? t('Completed at') : t('Follow-up due')}
           <input type="datetime-local" required value={when} max={action === 'check_in' ? localTime(new Date()) : undefined}
             onChange={e => setWhen(e.target.value)} autoFocus={action === 'follow_up'}/>
-          <span className="case-hint">Device time · {Intl.DateTimeFormat().resolvedOptions().timeZone}</span>
+          <span className="case-hint">{t("Device time ·")} {Intl.DateTimeFormat().resolvedOptions().timeZone}</span>
         </label>}
-        {(action === 'fulfill' || action === 'decline') && <label>{action === 'fulfill' ? 'Who delivered the help?' : 'Declined referral'}
+        {(action === 'fulfill' || action === 'decline') && <label>{action === 'fulfill' ? t('Who delivered the help?') : t('Declined referral')}
           <select value={attempt} onChange={e => setAttempt(e.target.value)} required={action === 'decline'} autoFocus>
-            {action === 'fulfill' && <option value="">ComForce (direct)</option>}
+            {action === 'fulfill' && <option value="">{t("ComForce (direct)")}</option>}
             {activeRefs.map(r => <option value={r.id} key={r.id}>{r.partner} · {dated(r.sent_at)}</option>)}
           </select>
         </label>}
-        {action === 'direct' && <p>Mark this need for delivery by ComForce. Confirm delivery after the resident receives help.</p>}
-        {action === 'unmet' && <label>Unmet reason<textarea value={value} maxLength={300} onChange={e => setValue(e.target.value)} required autoFocus rows={2}/></label>}
-        {error && <p className="team-error" role="alert">{error}</p>}
-        <div className="case-buttons"><button className="team-primary" type="submit">{pending ? 'Saving…' : 'Save update'}</button>
-          <button className="team-secondary" type="button" onClick={() => choose(null)}>Cancel</button></div>
+        {action === 'direct' && <p>{t("Mark this need for delivery by ComForce. Confirm delivery after the resident receives help.")}</p>}
+        {action === 'unmet' && <label>{t("Unmet reason")}<textarea value={value} maxLength={300} onChange={e => setValue(e.target.value)} required autoFocus rows={2}/></label>}
+        {error && <p className="team-error" role="alert">{t(error)}</p>}
+        <div className="case-buttons"><button className="team-primary" type="submit">{pending ? t('Saving…') : t('Save update')}</button>
+          <button className="team-secondary" type="button" onClick={() => choose(null)}>{t("Cancel")}</button></div>
       </fieldset>
     </form> : <>
       <div className="case-buttons">{primary && (primary !== 'assign' || canAssign) && <button className="team-primary" onClick={() => choose(primary)}>{actionLabel(primary, need)}</button>}
-        <button className="team-secondary" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>More actions</button></div>
+        <button className="team-secondary" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t("More actions")}</button></div>
       {expanded && <div className="case-action-list">{secondary.map(a => <button key={a} onClick={() => choose(a)}>{actionLabel(a, need)}</button>)}</div>}
     </>)}
-    <p className="team-notice" role="status">{notice}</p>
+    <p className="team-notice" role="status">{t(notice)}</p>
   </section>
 }

@@ -1,5 +1,6 @@
 // Team workspace assistant with confirm-before-save proposals. Claude (Opus 5.5) built the proposal cards and save path.
 import { useState } from 'react'
+import { t } from '../languages/language'
 import { supabase } from '../supabase'
 import { submissionKey } from '../intake/form'
 import { dated } from '../team/queue'
@@ -35,21 +36,21 @@ function ProposalCard({ proposal, token, update, onSaved }: { proposal: Proposal
     } finally { setSaving(false) }
   }
   return <div className="assistant-card assistant-proposal">
-    <p><strong>{proposal.label}</strong></p>
+    <p><strong>{proposal.label.split(' · ').map(part => t(part)).join(' · ')}</strong></p>
     <p>{proposal.summary}</p>
     {(proposal.value || proposal.when || proposal.source || proposal.partner) && <dl>
-      {proposal.value && <div><dt>Details</dt><dd>{proposal.value}</dd></div>}
-      {proposal.partner && <div><dt>{proposal.action === 'fulfill' ? 'Delivery credit' : 'Declined by'}</dt><dd>{proposal.partner}</dd></div>}
-      {proposal.when && <div><dt>{proposal.action === 'check_in' ? 'Happened' : 'Due'}</dt><dd>{dated(proposal.when)}</dd></div>}
-      {proposal.source && <div><dt>Verified by</dt><dd>{proposal.source}</dd></div>}
+      {proposal.value && <div><dt>{t('Details')}</dt><dd>{proposal.value}</dd></div>}
+      {proposal.partner && <div><dt>{t(proposal.action === 'fulfill' ? 'Delivery credit' : 'Declined by')}</dt><dd>{proposal.partner}</dd></div>}
+      {proposal.when && <div><dt>{t(proposal.action === 'check_in' ? 'Happened' : 'Due')}</dt><dd>{dated(proposal.when)}</dd></div>}
+      {proposal.source && <div><dt>{t('Verified by')}</dt><dd>{proposal.source}</dd></div>}
     </dl>}
-    {proposal.status === 'saved' ? <p className="assistant-status" role="status">Saved to the case.</p>
-      : proposal.status === 'dismissed' ? <p className="assistant-status">Dismissed. Nothing was changed.</p>
+    {proposal.status === 'saved' ? <p className="assistant-status" role="status">{t('Saved to the case.')}</p>
+      : proposal.status === 'dismissed' ? <p className="assistant-status">{t('Dismissed. Nothing was changed.')}</p>
       : <div className="assistant-buttons">
-        <button type="button" className="assistant-action" disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save update'}</button>
-        <button type="button" className="assistant-secondary" disabled={saving} onClick={() => update({ status: 'dismissed' })}>Dismiss</button>
+        <button type="button" className="assistant-action" disabled={saving} onClick={() => void save()}>{t(saving ? 'Saving…' : 'Save update')}</button>
+        <button type="button" className="assistant-secondary" disabled={saving} onClick={() => update({ status: 'dismissed' })}>{t('Dismiss')}</button>
       </div>}
-    {error && <p className="assistant-error" role="alert">{error}</p>}
+    {error && <p className="assistant-error" role="alert">{t(error)}</p>}
   </div>
 }
 
@@ -64,7 +65,7 @@ export default function TeamAssistant({ token, scope, hidden, onSaved, onOpenCas
     notice="Drafted by an AI model. Check each update before saving."
     suggestions={['What should I work on first?', 'Which needs are overdue?', 'Summarize unassigned family support needs', 'Who has the most open needs?']}
     renderAction={(action, update) => {
-      if (action.type === 'open_case') return <button type="button" className="assistant-action" onClick={() => onOpenCase(action.reference, action.needId)}>{action.label}</button>
+      if (action.type === 'open_case') return <button type="button" className="assistant-action" onClick={() => onOpenCase(action.reference, action.needId)}>{action.service ? t('Open {reference}', { reference: action.reference }) + ' · ' + t(action.service) : action.label}</button>
       if (action.type === 'proposal') return <ProposalCard proposal={action} token={token} update={update} onSaved={onSaved}/>
       return null
     }}/>
