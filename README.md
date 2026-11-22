@@ -17,7 +17,7 @@ Translations ship in the app and incur no per-request translation fees. Edit `sr
 
 With the local site running and the database migrations applied, run `node tests/languages.mjs` to verify language switching through the resident and team workflows.
 
-The resident pages and staff workspace share one React/Vite build. The public impact page reads one shared, read-only fictional template without creating a workspace. Opening the team demo, visiting Lend a hand, or submitting a request creates a private copy that expires after 24 hours; at most 50 visitor workspaces can be active. A paired resident link grants submission and aggregate access to the laptop’s workspace. The separate [verified staff entrance](http://127.0.0.1:5173/team?mode=staff) reads the original staff records. Neighborhood data is a static, aggregate public-data view and does not require Supabase.
+The resident pages and staff workspace share one React/Vite build. The public impact page reads one shared, read-only fictional template without creating a workspace. Opening the team demo, visiting Lend a hand, or submitting a request creates a private copy that expires after 24 hours. There are 50 slots for these copies. A paired resident link grants submission and aggregate access to the laptop’s workspace. The separate [verified staff entrance](http://127.0.0.1:5173/team?mode=staff) reads the original staff records. Neighborhood data is a static, aggregate public-data view and does not require Supabase.
 
 ```mermaid
 flowchart LR
@@ -42,7 +42,7 @@ flowchart LR
 ### Supabase
 
 1. In [your Supabase dashboard](https://supabase.com/dashboard), select **New project**, choose your organization and create a dedicated project named **comforce-connect-demo**. Save the database password privately. Once ready, copy its project reference, HTTPS project URL and **publishable** key.
-2. When upgrading the original hosted MVP, run `select count(*) from comforce.workspaces where id <> comforce.template_id();` in the SQL Editor before choosing a rollout time. Existing visitor workspaces receive a 24-hour grace period. At 50 or more, new visitors can view the atlas, but visitors who need a new workspace for Team, Lend a hand or intake must wait for capacity. Schedule the upgrade at least 24 hours before the demo if the count is near 50.
+2. When upgrading the original hosted MVP, apply all pending migrations together. Existing demo workspaces keep their links and get a final 24 hours of access. New visitors can use all 50 slots immediately after the upgrade. If upgrading a database that already enforces expiry, existing workspaces keep their original deadlines.
 3. From the approved checkout with dependencies installed, run the following against that project. Review the dry run before applying the schema. [Supabase migration guide](https://supabase.com/docs/guides/deployment/database-migrations)
 
 ```sh

@@ -1,7 +1,7 @@
 -- Rollback-only TAP checks. OpenAI Codex (GPT-6) tested bounded capability isolation, family intake, history and callback accounting.
 begin;
 set local plpgsql.check_asserts = on;
-select '1..4';
+select '1..5';
 
 do $$ begin
   perform set_config('comforce_test.workspace_before',(select count(*)::text from comforce.workspaces),true);
@@ -158,9 +158,34 @@ end $$;
 select 'ok 3 - one verified callback, private outcome history, open ride and scoped public counts';
 
 reset role;
+-- Model a rollout with more existing visitors than the ongoing admission limit.
+-- Keep A and its real case graph as an existing workspace, leave B as a new one.
+update comforce.workspaces set pre_rollout=true
+where id=(current_setting('comforce_test.a')::jsonb->>'workspace_id')::uuid;
+insert into comforce.workspaces(staff_digest,resident_digest,pre_rollout)
+select sha256(convert_to('legacy-staff-'||n,'UTF8')),sha256(convert_to('legacy-resident-'||n,'UTF8')),true
+from generate_series(1,50) n;
+
 insert into comforce.workspaces(staff_digest,resident_digest)
 select sha256(convert_to('capacity-staff-'||n,'UTF8')),sha256(convert_to('capacity-resident-'||n,'UTF8'))
-from generate_series(1,50 - (select count(*) from comforce.workspaces where id <> comforce.template_id())) n;
+from generate_series(1,49 - (select count(*) from comforce.workspaces
+  where id <> comforce.template_id() and not pre_rollout)) n;
+set local role anon;
+do $$
+declare a jsonb := current_setting('comforce_test.a')::jsonb; admitted jsonb;
+begin
+  assert public.demo_workspace_expiry(a->>'staff_token',a->>'resident_token')=(a->>'expires_at')::timestamptz;
+  assert exists(select 1 from jsonb_array_elements(public.team_queue(a->>'staff_token')) q
+    where q->>'reference'=current_setting('comforce_test.reference'));
+  admitted := public.create_demo_workspace();
+  perform set_config('comforce_test.admitted',admitted->>'workspace_id',true);
+end $$;
+reset role;
+do $$ begin
+  assert exists(select 1 from comforce.workspaces where id=current_setting('comforce_test.admitted')::uuid and not pre_rollout);
+end $$;
+select 'ok 4 - grandfathered visitors retain their cases and expiry while the fiftieth new workspace is admitted';
+
 set local role anon;
 do $$
 begin
@@ -191,5 +216,21 @@ begin
   assert not exists(select 1 from comforce.workspaces where id=(b->>'workspace_id')::uuid);
   assert not exists(select 1 from comforce.requests where workspace_id=(b->>'workspace_id')::uuid);
 end $$;
-select 'ok 4 - active workspace cap, expiry cleanup and cascading deletion are enforced';
+-- Retiring an old workspace removes its data but does not free an additional new admission.
+update comforce.workspaces set created_at=statement_timestamp()-interval '2 seconds',
+  expires_at=statement_timestamp()-interval '1 second'
+where id=(current_setting('comforce_test.a')::jsonb->>'workspace_id')::uuid;
+do $$ begin
+  perform comforce.cleanup_demo_workspaces();
+  assert not exists(select 1 from comforce.requests where workspace_id=(current_setting('comforce_test.a')::jsonb->>'workspace_id')::uuid);
+  assert exists(select 1 from comforce.workspaces where id=comforce.template_id() and expires_at='infinity');
+end $$;
+set local role anon;
+do $$ begin
+  begin
+    perform public.create_demo_workspace();
+    raise exception 'Retiring a grandfathered workspace freed an additional new slot';
+  exception when program_limit_exceeded then null; end;
+end $$;
+select 'ok 5 - ongoing admissions stay bounded and both cohorts expire with cascading cleanup';
 rollback;
