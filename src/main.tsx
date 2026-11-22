@@ -1,4 +1,5 @@
 // App entry and route navigation. Codex (GPT-6) built the public and team layouts and route loading.
+// asherjaenchen with Claude Opus 5.5 added the /status route and its navigation link.
 // Claude (Opus 5.5) added the public-site assistant.
 import { lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -18,7 +19,7 @@ if (legacyGuide) {
   history.replaceState(history.state, '', legacyGuide)
   path = '/impact'
 }
-if (!preview && (path === '/request' || path === '/' || path === '/impact')) acceptResidentLink()
+if (!preview && (path === '/request' || path === '/' || path === '/impact' || path === '/status')) acceptResidentLink()
 const source = new URLSearchParams(location.search).get('source')
 const staffIntake = path === '/request' && (source === 'call' || source === 'text')
 const staff = path === '/team' || staffIntake
@@ -28,8 +29,9 @@ const Page = path === '/' ? lazy(() => import('./Home'))
   : path === '/safety' ? lazy(() => import('./safety/Safety'))
   : path === '/impact' ? lazy(() => import('./impact/Impact'))
   : path === '/request' ? lazy(() => import('./intake/Intake'))
+  : path === '/status' ? lazy(() => import('./status/Status'))
   : path === '/team' ? lazy(() => import('./team/Team')) : undefined
-document.title = 'ComForce Connect · ' + (staff ? 'Team workspace' : path === '/' ? 'Home' : path === '/safety' ? 'Neighborhood data' : path === '/impact' ? 'Community impact' : path === '/request' ? 'Request help' : 'Page unavailable')
+document.title = 'ComForce Connect · ' + (staff ? 'Team workspace' : path === '/' ? 'Home' : path === '/safety' ? 'Neighborhood data' : path === '/impact' ? 'Community impact' : path === '/request' ? 'Request help' : path === '/status' ? 'Check a request' : 'Page unavailable')
 
 const CommunityAssistant = lazy(() => import('./assistant/CommunityAssistant'))
 
@@ -54,6 +56,7 @@ function App() {
           <a href={route('/impact')} aria-current={path === '/impact' ? 'page' : undefined}>Community impact</a>
           <a href={route('/safety')} aria-current={path === '/safety' ? 'page' : undefined}>Neighborhood data</a>
           <a href={route('/request')} aria-current={path === '/request' ? 'page' : undefined}>Request help</a>
+          <a href={route('/status')} aria-current={path === '/status' ? 'page' : undefined}>Check a request</a>
           <a href={queue}>Team workspace</a>
           {Page && !isStaffMode() && <Suspense fallback={null}><CommunityAssistant/></Suspense>}
         </nav>}

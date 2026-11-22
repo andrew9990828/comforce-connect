@@ -228,6 +228,8 @@ begin
     and (workspace is not null or actor_role='administrator' or n.assigned_staff_id=actor_uid)
   for update of n;
   if not found then raise insufficient_privilege using message='This need is unavailable or is not assigned to you.'; end if;
+  -- PL/pgSQL cannot mix a row variable with other targets in one INTO list.
+  request_id := current_need.request_id;
   if p_action='fulfill' and current_need.status='fulfilled' then return; end if;
   if p_action='check_in' then
     verified_source := nullif(btrim(p_source),'');
