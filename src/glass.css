@@ -7,7 +7,7 @@ html[data-style=glass] {
     inset 0 -1.5px 1.5px #3857466b, inset -2px -3px 5px #90c19e4d,
     0 2px 3px #0a4d2b13, 0 8px 22px -7px #0a4d2b4a;
 }
-html[data-style=glass] .site-header { background: #f5f8f3; border-bottom:1px solid var(--line); color:var(--ink); border:0; }
+html[data-style=glass] .site-header { background: #fff; color:var(--ink); border:0; border-bottom:1px solid var(--line); box-shadow: 0 2px 12px -6px #0a4d2b33; position: relative; z-index: 5; }
 html[data-style=glass] .site-bar { min-height:58px; max-width:1360px; }
 html[data-style=glass] .staff-header :is(.brand,.site-nav a,.site-nav .public-crosslink) { color: var(--ink); }
 html[data-style=glass] .brand-mark { background:#fff; }
