@@ -1,11 +1,11 @@
 // App entry and route navigation. Codex (GPT-6) built the public and team layouts and route loading.
+// Claude (Opus 5.5) added the public-site assistant.
 import { lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@fontsource-variable/dm-sans/wght.css'
 import './base.css'
 import './appearance.css'
 import './glass.css'
-import PublicChat from './PublicChat'
 import { GlassOptics } from './GlassOptics'
 import { preview, route } from './preview/location'
 import { guideRoute } from './impact/guide'
@@ -25,10 +25,13 @@ const staff = path === '/team' || staffIntake
 const queue = route('/team') + (isStaffMode() ? '?mode=staff' : '')
 const log = route('/request?source=call') + (isStaffMode() ? '&mode=staff' : '')
 const Page = path === '/' ? lazy(() => import('./Home'))
+  : path === '/safety' ? lazy(() => import('./safety/Safety'))
   : path === '/impact' ? lazy(() => import('./impact/Impact'))
   : path === '/request' ? lazy(() => import('./intake/Intake'))
   : path === '/team' ? lazy(() => import('./team/Team')) : undefined
-document.title = 'ComForce Connect · ' + (staff ? 'Team workspace' : path === '/' ? 'Home' : path === '/impact' ? 'Community impact' : path === '/request' ? 'Request help' : 'Page unavailable')
+document.title = 'ComForce Connect · ' + (staff ? 'Team workspace' : path === '/' ? 'Home' : path === '/safety' ? 'Neighborhood data' : path === '/impact' ? 'Community impact' : path === '/request' ? 'Request help' : 'Page unavailable')
+
+const CommunityAssistant = lazy(() => import('./assistant/CommunityAssistant'))
 
 function App() {
   return <>
@@ -48,13 +51,16 @@ function App() {
           </nav>
         </> : <nav className="site-nav" aria-label="Public navigation">
           {path !== '/' && <a href={route('/')}>Home</a>}
+          <a href={route('/impact')} aria-current={path === '/impact' ? 'page' : undefined}>Community impact</a>
+          <a href={route('/safety')} aria-current={path === '/safety' ? 'page' : undefined}>Neighborhood data</a>
+          <a href={route('/request')} aria-current={path === '/request' ? 'page' : undefined}>Request help</a>
           <a href={queue}>Team workspace</a>
-          {Page && !isStaffMode() && <PublicChat/>}
+          {Page && !isStaffMode() && <Suspense fallback={null}><CommunityAssistant/></Suspense>}
         </nav>}
       </div>
     </header>
     <div id="content" tabIndex={-1}>
-      {!configured && !preview && Page && path !== '/' && <aside className="setup-notice">Local setup needed. Set the public Supabase key in .env.local and restart Vite to connect the demo.</aside>}
+      {!configured && !preview && Page && path !== '/' && path !== '/safety' && <aside className="setup-notice">Local setup needed. Set the public Supabase key in .env.local and restart Vite to connect the demo.</aside>}
       {Page ? <Suspense fallback={<main className="missing-page" role="status">Loading…</main>}><Page /></Suspense>
         : <main className="missing-page"><h1>Page unavailable</h1><a href={route('/')}>Return home</a></main>}
     </div>

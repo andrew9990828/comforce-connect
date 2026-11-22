@@ -8,6 +8,7 @@ export interface Need {
   id: string
   service: Service
   status: NeedStatus
+  assigned_staff_id: string | null
   owner: string | null
   follow_up: string | null
   provider: string | null
@@ -15,7 +16,14 @@ export interface Need {
   unmet_reason: string | null
   partner_contact: string | null
   referrals: { id: string; partner: string; sent_at: string; declined_at: string | null }[]
-  history: { at: string; action: string; detail: string; source: string | null }[]
+  history: {
+    at: string
+    action: string
+    detail: string
+    source: string | null
+    actor_name: string | null
+    actor_role: 'administrator' | 'caseworker' | null
+  }[]
 }
 
 export interface TeamRequest {

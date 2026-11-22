@@ -43,7 +43,7 @@ export default function TeamLogin() {
   }
   return <main className="team-page"><section className="team-login">
     <h1>Staff sign-in</h1>
-    <p>{preview ? 'Preview sign-in with a fictional email and any six-digit code.' : 'Use your approved staff email to access the staff queue.'}</p>
+    <p>{preview ? 'Preview sign-in with a fictional email and any six-digit code.' : 'Use your approved staff email. Administrators manage assignments. Caseworkers see only cases assigned to them.'}</p>
     <form onSubmit={signIn}>
       {sentTo ? <><p role="status">{preview ? 'Enter any six-digit preview code for ' : 'Enter the six-digit code sent to '}<strong>{sentTo}</strong>.</p>
         <label>Six-digit sign-in code<input value={code} onChange={e => setCode(e.target.value)}

@@ -5,6 +5,17 @@ const ownerKey = 'comforce.demo.owner.v1'
 const pairingKey = 'comforce.demo.resident.v1'
 const validToken = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
 type Demo = { staff_token: string; resident_token: string }
+export type StaffRole = 'administrator' | 'caseworker'
+export type StaffMember = { user_id: string; display_name: string; role: StaffRole }
+export type StaffContext = {
+  token: string | null
+  residentToken: string | null
+  role: StaffRole
+  userId: string | null
+  displayName: string
+  canAssign: boolean
+  staff: StaffMember[]
+}
 let creating: Promise<Demo> | undefined
 
 function storedDemo(): Demo | undefined {
@@ -43,10 +54,20 @@ export function isStaffMode() {
   return new URLSearchParams(location.search).get('mode') === 'staff'
 }
 
-export async function staffContext() {
-  if (isStaffMode()) return { token: null, residentToken: null }
-  const demo = await ownDemo()
-  return { token: demo.staff_token, residentToken: demo.resident_token }
+export async function staffContext(): Promise<StaffContext> {
+  const demo = isStaffMode() ? null : await ownDemo()
+  const token = demo?.staff_token ?? null
+  const result = await supabase.rpc('staff_context', { p_token: token })
+  if (result.error) throw result.error
+  return {
+    token,
+    residentToken: demo?.resident_token ?? null,
+    role: result.data.role,
+    userId: result.data.user_id,
+    displayName: result.data.display_name,
+    canAssign: result.data.can_assign,
+    staff: result.data.staff,
+  }
 }
 
 // The fragment stays out of HTTP requests and referrers. Opening /team always selects this browser's own workspace.

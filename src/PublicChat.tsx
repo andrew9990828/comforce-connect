@@ -3,10 +3,9 @@ import { flushSync } from 'react-dom'
 
 const dockKey = 'comforce-chat-docked'
 
-export default function PublicChat() {
+export default function PublicChat({ open, toggle }: { open: boolean; toggle: (open: boolean) => void }) {
   const [docked, setDocked] = useState(() => sessionStorage.getItem(dockKey) === 'yes')
   const trigger = useRef<HTMLButtonElement>(null)
-  const notice = useRef<HTMLDivElement>(null)
   const start = useRef<{ id: number; x: number; y: number; offset: number; animate: boolean } | null>(null)
   const swiped = useRef(false)
 
@@ -53,7 +52,7 @@ export default function PublicChat() {
   }, [])
 
   function dock() {
-    notice.current?.hidePopover()
+    toggle(false)
     settle(() => setDocked(true))
     sessionStorage.setItem(dockKey, 'yes')
     trigger.current?.focus({ preventScroll: true })
@@ -61,7 +60,7 @@ export default function PublicChat() {
 
   return <div ref={launcher} className={'public-chat ' + (docked ? 'docked' : 'floating')}>
     <button ref={trigger} className="chat-trigger" type="button" aria-label={docked ? 'Restore floating chat' : 'Chat'}
-      popoverTarget={docked ? undefined : 'chat-notice'}
+      aria-expanded={open} aria-controls={open ? 'assistant-community' : undefined}
       onPointerDown={event => {
         swiped.current = false
         if (docked || !event.isPrimary || event.button !== 0) return
@@ -107,8 +106,8 @@ export default function PublicChat() {
           event.preventDefault()
           sessionStorage.removeItem(dockKey)
           settle(() => setDocked(false))
-          notice.current?.showPopover()
-        }
+          toggle(true)
+        } else toggle(!open)
       }}>
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden="true">
         <path d="M20.5 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.4 0-2.8-.3-4-.9L3.5 21l1.2-4.8a8.5 8.5 0 1 1 15.8-4.7Z"/>
@@ -116,6 +115,5 @@ export default function PublicChat() {
       </svg>
     </button>
     {!docked && <button className="chat-dismiss" type="button" aria-label="Move chat to header" onClick={dock}>×</button>}
-    <div ref={notice} id="chat-notice" popover="auto">Chat is coming soon.</div>
   </div>
 }

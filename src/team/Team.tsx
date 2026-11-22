@@ -1,4 +1,5 @@
 // Staff workspace. Codex (GPT-6) built isolated case queues, scoped polling and history-aware direct actions.
+// Claude (Opus 5.5) added the team assistant.
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../supabase'
 import { isStaffMode, staffContext } from '../workspace'
@@ -8,6 +9,8 @@ import MissingPersonsMap from './MissingPersonsMap'
 import CaseDetail from './CaseDetail'
 import TeamLogin from './TeamLogin'
 import ResidentPairing from './ResidentPairing'
+import TeamAssistant from '../assistant/TeamAssistant'
+import { clearTeamChats, scopeLabel } from '../assistant/conversation'
 import { actionLabel, dated, isOverdue, nextAction, outcome, partner, serviceLabels, statusLabels, type Action, type Need, type NeedStatus, type Service, type TeamRequest } from './queue'
 import './team.css'
 
@@ -29,6 +32,7 @@ function Workspace({ staff }: { staff: boolean }) {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [selected, setSelected] = useState(detailLocation)
   const [initialAction, setInitialAction] = useState<Action | null>(null)
+  const membershipRef = useRef<Membership | null>(null)
   const queueScroll = useRef(0)
   const trigger = useRef<HTMLElement | null>(null)
 
@@ -69,7 +73,7 @@ function Workspace({ staff }: { staff: boolean }) {
   }
 
   useEffect(() => {
-    if (preview) { setRequests(sampleRequests); setMembership({ token: null, residentToken: null }); return }
+    if (preview) { setRequests(sampleRequests); setMembership({ token: null, residentToken: null, role: 'administrator', displayName: 'Preview', userId: null, canAssign: true, staff: [] }); return }
     let live = true
     let timer: ReturnType<typeof setTimeout>
     let pending: AbortController | undefined
@@ -80,9 +84,12 @@ function Workspace({ staff }: { staff: boolean }) {
       pending = controller
       const timeout = setTimeout(() => controller.abort(), 8000)
       try {
-        const context = await staffContext()
+        const context = membershipRef.current ?? await staffContext()
         if (!live) return
-        setMembership(context)
+        if (!membershipRef.current) {
+          membershipRef.current = context
+          setMembership(context)
+        }
         const result = await supabase.rpc('team_queue', { p_token: context.token }).abortSignal(controller.signal)
         if (!live) return
         if (result.error) {
@@ -133,7 +140,7 @@ function Workspace({ staff }: { staff: boolean }) {
   const unassignedCount = visible.filter(({ need }) => need.status === 'open' && !need.owner).length
   return <main className="team-page">
     <div className="team-intro"><div><h1>Needs queue</h1>
-      <p>{staff ? 'Staff casework' : 'Private fictional workspace'} · Milwaukee</p></div>
+      <p>{staff ? membership ? `${membership.role === 'administrator' ? 'Administrator' : 'Caseworker'} workspace` : 'Staff workspace' : 'Private fictional workspace'} · Milwaukee</p></div>
       {!!membership?.residentToken && <ResidentPairing token={membership.residentToken}/>}
     </div>
     {error && <div role="alert" className="team-error">{error} <button onClick={refresh}>Retry</button></div>}
@@ -188,10 +195,18 @@ function Workspace({ staff }: { staff: boolean }) {
     </>}
     <MissingPersonsMap/>
     <footer className="team-footer">{staff ? <><a href={route('/team')}>Open fictional demo</a>
-      <button onClick={async () => { const { error } = await supabase.auth.signOut({ scope:'local' }); if (error) setError('Sign-out failed. Try again.') }}>Sign out</button></>
+      <button onClick={async () => { clearTeamChats(); const { error } = await supabase.auth.signOut({ scope:'local' }); if (error) setError('Sign-out failed. Try again.') }}>Sign out</button></>
       : <a href={route('/team?mode=staff')}>Staff sign-in</a>}</footer>
+    {!preview && requests && membership && <TeamAssistant token={membership.token} hidden={!!currentRequest} onSaved={refresh}
+      scope={staff ? `staff-${membership.userId}` : `demo-${scopeLabel(membership.token ?? '')}`}
+      onOpenCase={(reference, needId) => {
+        const request = requests.find(r => r.reference === reference)
+        const need = request?.needs.find(n => n.id === needId)
+        if (request && need) openCase(request, need, null)
+      }}/>}
     {!!currentRequest && !!currentNeed && membership && <CaseDetail request={currentRequest} need={currentNeed} initial={initialAction} token={membership.token}
-      owners={owners} partners={partners} onSelect={need => openCase(currentRequest, need, null)} onSaved={refresh} onClose={closeCase}/>}
+      owners={owners} partners={partners} canAssign={membership.canAssign} staffMembers={membership.staff} demo={!staff}
+      onSelect={need => openCase(currentRequest, need, null)} onSaved={refresh} onClose={closeCase}/>}
   </main>
 }
 
@@ -199,8 +214,12 @@ export default function Team() {
   const staff = !preview && isStaffMode()
   const [account, setAccount] = useState<string | null | undefined>(undefined)
   useEffect(() => {
-    if (!staff || preview) return
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => setAccount(session?.user.id ?? null))
+    if (!staff) return
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      // Covers sign-out from another tab or an expired session, as well as the Sign out button.
+      if (event === 'SIGNED_OUT') clearTeamChats()
+      setAccount(session?.user.id ?? null)
+    })
     return () => data.subscription.unsubscribe()
   }, [staff])
   if (preview && isStaffMode()) return <TeamLogin/>

@@ -9,7 +9,7 @@ export const sampleRequests: TeamRequest[] = services.map((service, i) => ({
   contact_method: 'text', contact: '(414) 555-0100', source: 'web', created_at: '2026-11-16T14:00:00Z',
   second_method: i === 0 ? 'email' : null, second_contact: i === 0 ? 'resident@example.invalid' : null,
   family_support: service === 'family_support' ? { support: 'Family check-in', safe_contact: 'Text after 4 p.m.' } : null,
-  needs: [{ id: 'need-' + i, service, status: 'open', owner: [null, 'Jordan', 'Alex', null][i], provider: null,
+  needs: [{ id: 'need-' + i, service, assigned_staff_id: null, status: 'open', owner: [null, 'Jordan', 'Alex', null][i], provider: null,
     follow_up: i === 2 ? '2026-11-18T17:00:00Z' : null, fulfilled_at: null, unmet_reason: null, partner_contact: null, referrals: [], history: [] }],
 }))
 

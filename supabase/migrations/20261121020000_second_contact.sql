@@ -24,7 +24,13 @@ declare
   workspace uuid := comforce.resolve_workspace(p_token,p_source in ('call','text'));
   receipt comforce.requests;
   family jsonb;
+  actor_uid uuid;
+  actor_email text;
+  actor_role text;
 begin
+  if workspace is null and comforce.is_staff() then
+    select user_id,email,role into actor_uid,actor_email,actor_role from comforce.current_staff();
+  end if;
   if cardinality(p_services) is null or cardinality(p_services) not between 1 and 6
      or cardinality(p_services) <> (select count(distinct value) from unnest(p_services) value)
      or not (p_services <@ array['food','transportation','shelter','youth','other','family_support']) then
@@ -47,11 +53,17 @@ begin
   elsif p_family is not null then
     raise exception using errcode = '22023', message = 'Select family support before adding family contact instructions.';
   end if;
-  insert into comforce.requests(workspace_id,submission_key,description,neighborhood,contact_method,contact,source,family_support,second_method,second_contact)
-  values(workspace,p_key,btrim(p_description),p_neighborhood,p_contact_method,btrim(p_contact),p_source,family,p_second_method,btrim(p_second_contact))
+  insert into comforce.requests(workspace_id,submission_key,description,neighborhood,contact_method,contact,source,family_support,second_method,second_contact,submitted_by)
+  values(workspace,p_key,btrim(p_description),p_neighborhood,p_contact_method,btrim(p_contact),p_source,family,p_second_method,btrim(p_second_contact),
+    case when workspace is null then actor_uid end)
   on conflict (workspace_id,submission_key) do nothing returning * into receipt;
   if found then
     insert into comforce.needs(request_id,service) select receipt.id,value from unnest(p_services) value;
+    if actor_uid is not null then
+      insert into comforce.audit_log(actor_uid,actor_email,actor_role,action,request_id,detail)
+      values(actor_uid,actor_email,actor_role,'request_submit',receipt.id,
+        jsonb_build_object('source',p_source,'services',to_jsonb(p_services)));
+    end if;
   else
     select * into strict receipt from comforce.requests
     where workspace_id is not distinct from workspace and submission_key=p_key;
@@ -67,18 +79,30 @@ end $$;
 
 create or replace function public.team_queue(p_token text default null) returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
-declare workspace uuid := comforce.resolve_workspace(p_token,true);
+declare
+  workspace uuid := comforce.resolve_workspace(p_token,true);
+  actor_uid uuid;
+  actor_role text;
 begin
+  if workspace is null then
+    select user_id,role into actor_uid,actor_role from comforce.current_staff();
+    if not found then raise insufficient_privilege using message='Verified staff access is required.'; end if;
+  end if;
   return (select coalesce(jsonb_agg(to_jsonb(c) order by c.created_at desc,c.reference desc),'[]')
     from (
       select r.id,r.reference,r.description,r.neighborhood,r.contact_method,r.contact,r.source,r.created_at,r.family_support,r.second_method,r.second_contact,
         (select jsonb_agg(to_jsonb(n) - 'request_id' || jsonb_build_object(
           'referrals', (select coalesce(jsonb_agg(to_jsonb(f) - 'need_id' order by f.sent_at desc,f.id),'[]')
                         from comforce.referrals f where f.need_id = n.id),
-          'history', (select coalesce(jsonb_agg(to_jsonb(h) - 'need_id' - 'id' - 'operation_key' order by h.at desc,h.id desc),'[]')
-                      from comforce.history h where h.need_id = n.id)
-        ) order by n.service) from comforce.needs n where n.request_id = r.id) as needs
-      from comforce.requests r where r.workspace_id is not distinct from workspace
+          'history', (select coalesce(jsonb_agg(to_jsonb(h) - 'need_id' - 'id' - 'operation_key' - 'actor_uid'
+                        order by h.at desc,h.id desc),'[]') from comforce.history h where h.need_id = n.id)
+        ) order by n.service) from comforce.needs n where n.request_id = r.id
+          and (workspace is not null or actor_role='administrator' or n.assigned_staff_id=actor_uid)) as needs
+      from comforce.requests r
+      where r.workspace_id is not distinct from workspace
+        and (workspace is not null or actor_role='administrator' or exists (
+          select 1 from comforce.needs visible where visible.request_id=r.id and visible.assigned_staff_id=actor_uid
+        ))
     ) c);
 end $$;
 

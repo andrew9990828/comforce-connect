@@ -1,5 +1,7 @@
 // Resident and staff intake. Codex (GPT-6) implemented accessible multi-need submission and recovery.
-import { useRef, useState, type FormEvent } from 'react'
+// Claude (Opus 5.5) added pre-fill from the community assistant.
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { draftEvent, takeDraft } from '../assistant/draft'
 import { preview, route } from '../preview/location'
 import { supabase } from '../supabase'
 import { isStaffMode, residentToken, staffContext } from '../workspace'
@@ -37,6 +39,26 @@ export default function Intake() {
   const secondContact = secondMethod === 'email' ? email : phone
   const sameNumber = method && secondMethod && method !== 'email' && secondMethod !== 'email'
   const family = selected.includes('family_support')
+  const submitted = useRef(false)
+  submitted.current = !!receipt
+
+  // A draft from the community assistant fills only services, description and neighborhood. Residents add contact details.
+  useEffect(() => {
+    if (staffEntry) return
+    function apply() {
+      if (submitted.current) { location.assign(route('/request')); return }
+      const draft = takeDraft()
+      if (!draft) return
+      select(draft.services)
+      if (draft.description) describe(draft.description.slice(0, draft.services.includes('family_support') ? 500 : 800))
+      if (draft.neighborhood) locate(draft.neighborhood)
+      setErrors({})
+      document.getElementById('description')?.focus()
+    }
+    apply()
+    window.addEventListener(draftEvent, apply)
+    return () => window.removeEventListener(draftEvent, apply)
+  }, [])
 
   function clearError(field: keyof IntakeDraft) {
     setErrors(current => ({ ...current, [field]: undefined }))
