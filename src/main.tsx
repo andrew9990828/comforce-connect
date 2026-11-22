@@ -6,9 +6,11 @@ import { t, useLanguage } from './languages/language'
 // Claude (Opus 5.5) added the public-site assistant.
 import { lazy, Suspense, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
-import '@fontsource-variable/inter/index.css'
+import '@fontsource-variable/dm-sans/wght.css'
 import './base.css'
 import './appearance.css'
+import './glass.css'
+import { GlassOptics } from './GlassOptics'
 import markUrl from './brand/mark.png'
 import lockupUrl from './brand/lockup.png'
 import { preview, route } from './preview/location'
@@ -39,9 +41,9 @@ const Page = path === '/' ? lazy(() => import('./Home'))
   : path === '/team/board' ? lazy(() => import('./helpout/TeamBoard')) : undefined
 const CommunityAssistant = !staff && Page ? lazy(() => import('./assistant/CommunityAssistant')) : undefined
 const pageTitle = path === '/team/board' ? 'Community board' : staff ? 'Team workspace'
-  : path === '/' || path === '/impact' ? 'Community impact' : path === '/safety' ? 'Neighborhood data'
-  : path === '/request' ? 'Request help' : path === '/help-out' ? 'Lend a hand'
-  : path === '/status' ? 'Check a request' : 'Page unavailable'
+  : path === '/' ? 'Home' : path === '/safety' ? 'Your neighborhood' : path === '/impact' ? 'How we help'
+  : path === '/request' ? 'Get help' : path === '/help-out' ? 'Lend a hand'
+  : path === '/status' ? 'Check my request' : 'Page unavailable'
 
 const description = document.querySelector<HTMLMetaElement>('meta[name="description"]')
 const defaultDescription = description?.content ?? ''
@@ -53,6 +55,7 @@ function App() {
     if (description) description.content = t(defaultDescription)
   }, [language])
   return <>
+    <GlassOptics/>
     <a className="skip-link" href="#content">{t("Skip to content")}</a>
     <header className={'site-header' + (staff ? ' staff-header' : '')}>
       <div className="site-bar">
@@ -72,11 +75,11 @@ function App() {
             <a className="staff-log" href={log} aria-current={staffIntake ? 'page' : undefined}>{t("Log a request")}</a>
           </nav>
         : <nav className="site-nav" aria-label={t("Public navigation")}>
-          <a href={route('/')} aria-current={path === '/' || path === '/impact' ? 'page' : undefined}>{t("Community impact")}</a>
-          <a href={route('/safety')} aria-current={path === '/safety' ? 'page' : undefined}>{t("Neighborhood data")}</a>
-          <a className="nav-cta" href={route('/request')} aria-current={path === '/request' ? 'page' : undefined}>{t("Request help")}</a>
+          <a className="nav-cta" href={route('/request')} aria-current={path === '/request' ? 'page' : undefined}>{t("Get help")}</a>
+          <a href={route('/status')} aria-current={path === '/status' ? 'page' : undefined}>{t("Check my request")}</a>
+          <a href={route('/impact')} aria-current={path === '/impact' ? 'page' : undefined}>{t("How we help")}</a>
+          <a href={route('/safety')} aria-current={path === '/safety' ? 'page' : undefined}>{t("Your neighborhood")}</a>
           <a href={route('/help-out')} aria-current={path === '/help-out' ? 'page' : undefined}>{t("Lend a hand")}</a>
-          <a href={route('/status')} aria-current={path === '/status' ? 'page' : undefined}>{t("Check a request")}</a>
           {CommunityAssistant && !isStaffMode() && <Suspense fallback={null}><CommunityAssistant/></Suspense>}
         </nav>}
       </div>
