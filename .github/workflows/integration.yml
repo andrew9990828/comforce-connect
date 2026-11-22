@@ -4,7 +4,7 @@ on:
   push:
     branches: ['hotfix/**']
   pull_request:
-    branches: [integration]
+    branches: [integration, main]
   workflow_dispatch:
 
 permissions:
@@ -37,7 +37,11 @@ jobs:
           export VITE_SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY:-$ANON_KEY}"
           npm run dev -- --host 127.0.0.1 > /tmp/comforce-vite.log 2>&1 &
           timeout 60 bash -c 'until curl -fsS http://127.0.0.1:5173/ >/dev/null; do sleep 1; done'
-          CHROME_PATH=/usr/bin/google-chrome npm run test:live
+          export CHROME_PATH=/usr/bin/google-chrome
+          npm run test:ui
+          npm run test:live
+          node tests/languages.mjs
+          npm run test:assistant-ui
       - name: Stop local stack
         if: always()
         run: npx supabase stop --no-backup
