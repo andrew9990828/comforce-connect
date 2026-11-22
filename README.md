@@ -9,6 +9,12 @@ Community Task Force MKE helps Milwaukee residents get food, rides and family su
 | [Request help](http://127.0.0.1:5173/request) | Ask for multiple services and receive one reference. [Start with family support](http://127.0.0.1:5173/request?service=family_support). |
 | [Team workspace](http://127.0.0.1:5173/team) | Open a private fictional queue, pair a resident device, assign a worker and record a callback. |
 
+The language selector works across the public site and team workspace. It starts with the browser’s preferred supported language and remembers later selections on that device. The available languages are English, Spanish, Hmong, German and Polish. The Census reports that 22% of Milwaukee city residents age five and older spoke a language other than English at home in 2020–2024. The City identifies Spanish and Hmong among the most common. [Census QuickFacts](https://www.census.gov/quickfacts/fact/table/milwaukeecitywisconsin/LFE046223) · [City of Milwaukee 2025 Recovery Plan](https://city.milwaukee.gov/ImageLibrary/Public/CDBG/ARPA/FINAL-2025-City-of-Milwaukee-Recovery-Plan.pdf)
+
+Translations ship in the app and incur no per-request translation fees. Edit `src/languages/messages.json` for interface text and `src/languages/demo.json` for fictional case narratives. Each English key has translations in the order Spanish, Hmong, German, Polish. Keep placeholders such as `{month}` in every translation. Residents and staff can type in any language. Their original notes, names and contact details stay as entered. Have fluent community reviewers check service terminology and safe-contact instructions before public use.
+
+With the local site running and the database migrations applied, run `node tests/languages.mjs` to verify language switching through the resident and team workflows.
+
 Four routes share one React/Vite build. The public impact page reads one shared, read-only fictional template without creating a workspace. Opening the team demo or submitting a request creates a private copy that expires after 24 hours; at most 50 visitor workspaces can be active. A paired resident link grants submission and aggregate access to the laptop’s workspace. The separate [verified staff entrance](http://127.0.0.1:5173/team?mode=staff) reads the original staff records. Neighborhood data is a static, aggregate public-data view and does not require Supabase.
 
 ```mermaid
@@ -77,4 +83,4 @@ Pages serves the three routes from `index.html` using its default SPA fallback. 
 
 **Hosted smoke test, pending deployment.** On the laptop open the assigned `pages.dev/team` URL and pair the phone. On cellular, open the resident link, request family support and a ride, then record a callback on the laptop. Refresh Impact, Request help and the team case directly. Check that the callback increases once, transportation stays open and the atlas receives only monthly neighborhood totals. In a clean browser, paste the first case’s team URL and verify it is unavailable. See [local checks and pairing](docs/LOCAL_DEVELOPMENT.md) and [the PR workflow](CONTRIBUTING.md).
 
-Andrew Bieber supplied the brief and starter guides. OpenAI Codex (GPT-6) implemented the application, SQL, tests and presentation guides. The JSON package and TypeScript configurations omit inline credits. The bundled map geometry and npm lockfile are generated.
+Andrew Bieber supplied the brief and starter guides. OpenAI Codex (GPT-6) implemented the application, SQL, tests and presentation guides. OpenAI Codex (GPT-6) authored the Spanish, Hmong, German and Polish interface and demo catalogs. These JSON files, the JSON package and TypeScript configurations omit inline credits. The bundled map geometry and npm lockfile are generated.

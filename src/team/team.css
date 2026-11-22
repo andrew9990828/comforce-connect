@@ -80,6 +80,7 @@
   border-radius:10px; background:var(--staff-paper); overflow-y:auto; overscroll-behavior:contain; }
 .team-dialog::backdrop { background:rgb(15 43 52 / 58%); }
 .case-header { position:sticky; top:0; z-index:1; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:15px 22px; background:var(--lake); color:white; }
+.case-header label.language-select { display: inline-flex; color: white; }
 .case-header h2 { color:white; font-size:1.4rem; }
 .case-reference { display:block; font-size:.76rem; font-weight:620; color:#c7e5db; margin-bottom:3px; }
 .case-close { display:grid; place-items:center; width:44px; height:44px; border:1px solid #829ba4; border-radius:5px; background:transparent; color:white; font-size:1.65rem; line-height:1; }
