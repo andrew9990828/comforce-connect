@@ -1,4 +1,5 @@
 // Hands an assistant-prepared draft to the request form. Claude (Opus 5.5) implemented the hand-off.
+import { route } from '../preview/location'
 import { neighborhoods } from '../impact/neighborhoods'
 import { serviceLabels, type Service } from '../services'
 
@@ -8,9 +9,9 @@ export const draftEvent = 'comforce:assistant-draft'
 
 export function offerDraft(draft: RequestDraft) {
   sessionStorage.setItem(key, JSON.stringify(draft))
-  const onForm = location.pathname.replace(/\/+$/, '') === '/request' && !new URLSearchParams(location.search).has('source')
+  const onForm = location.pathname.replace(/\/+$/, '') === route('/request') && !new URLSearchParams(location.search).has('source')
   if (onForm) window.dispatchEvent(new Event(draftEvent))
-  else location.assign('/request')
+  else location.assign(route('/request'))
 }
 
 // Reads and removes the waiting draft, keeping only values the form accepts.

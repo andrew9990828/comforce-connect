@@ -1,7 +1,10 @@
 // Interactive demo atlas. Codex (GPT-6) implemented scoped aggregate reads, month comparisons, map selection and trend controls.
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
-import { residentToken } from '../workspace'
+import { preview } from '../preview/location'
+import { sampleImpact } from '../preview/samples'
+import { ExpiredPairing, pairingRejected, impactToken } from '../workspace'
+import ResidentRepair from '../ResidentRepair'
 import { neighborhoods } from './neighborhoods'
 import NeighborhoodMap from './NeighborhoodMap'
 
@@ -41,10 +44,15 @@ function comparison(month: string, current: string, count: number | null, prior:
 export default function Atlas() {
   const [rows, setRows] = useState<ImpactRow[] | null>(null)
   const [month, setMonth] = useState('')
-  const [selected, setSelected] = useState('')
+  const [selected, setSelected] = useState(() => {
+    const name = new URLSearchParams(location.search).get('area')
+    return name && neighborhoods.includes(name) ? name : ''
+  })
+  const [expired, setExpired] = useState(false)
   const [failed, setFailed] = useState(false)
   const [retry, setRetry] = useState(0)
   useEffect(() => {
+    if (preview) { setRows(sampleImpact); setMonth(chosen => chosen || sampleImpact.at(-1)!.month); return }
     let disposed = false
     let pending: AbortController | null = null
     async function refresh() {
@@ -53,18 +61,24 @@ export default function Atlas() {
       pending = controller
       const timeout = window.setTimeout(() => controller.abort(), 8000)
       try {
-        const token = await residentToken()
+        const token = await impactToken()
+        const result = await supabase.rpc('public_impact', { p_token: token, p_template: token === null }).abortSignal(controller.signal)
         if (disposed) return
-        const result = await supabase.rpc('public_impact', { p_token: token }).abortSignal(controller.signal)
+        if (result.error && pairingRejected(token, result.status, result.error.code)) throw new ExpiredPairing()
         if (result.error) throw result.error
         if (!disposed) {
           const fresh = (result.data ?? []) as ImpactRow[]
           setRows(fresh)
           setMonth(chosen => chosen || fresh.map(row => row.month).sort().at(-1) || chicagoMonth())
+          setExpired(false)
           setFailed(false)
         }
-      } catch {
-        if (!disposed) setFailed(true)
+      } catch (error) {
+        if (!disposed && error instanceof ExpiredPairing) {
+          setRows(null)
+          setExpired(true)
+          setFailed(false)
+        } else if (!disposed) setFailed(true)
       } finally {
         window.clearTimeout(timeout)
         pending = null
@@ -109,7 +123,6 @@ export default function Atlas() {
   const areas = [...neighborhoods, 'Unknown']
   return <section className="atlas-board" aria-labelledby="atlas-title">
     <header className="atlas-heading"><div>
-      <p className="impact-kicker">Interactive demo activity</p>
       <h2 id="atlas-title">Neighborhood atlas</h2>
     </div>
       <div className="atlas-month">
@@ -121,11 +134,13 @@ export default function Atlas() {
       </div>
     </header>
     <p className="atlas-instruction">Explore fictional outcomes across six Milwaukee neighborhoods. Tap a name to see local totals.</p>
+    {expired && <ResidentRepair onPaired={() => { setExpired(false); setRetry(value => value + 1) }}/> }
     {failed && <div role="alert" className="atlas-error">
       {rows ? 'Refresh failed. The last available totals are shown.' : 'Demo outcomes are unavailable. Check your connection.'}
       <button type="button" onClick={() => setRetry(value => value + 1)}>Retry</button>
     </div>}
-    <NeighborhoodMap selected={selected} periodLabel={label(period)} counts={counts} total={rows ? totals.needs_fulfilled : null} choose={setSelected} />
+    <NeighborhoodMap selected={selected} periodLabel={label(period)} counts={counts} legendLabel="Needs fulfilled"
+      readout={rows ? `${totals.needs_fulfilled.toLocaleString('en-US')} ${totals.needs_fulfilled === 1 ? 'need' : 'needs'} fulfilled` : 'Awaiting data'} choose={setSelected} />
     <div className="atlas-outcomes">
       <div className="atlas-scope">
         <h3>{selected === 'Unknown' ? 'Unknown neighborhood' : selected || 'Citywide'} outcomes</h3>
@@ -138,7 +153,7 @@ export default function Atlas() {
       {rows && !hasActivity && <p className="atlas-empty" role="status">No recorded outcomes in this selection. Choose another month or neighborhood.</p>}
     </div>
     <div className="atlas-trend">
-      <div><p className="impact-kicker">Six-month history</p><h3>Needs fulfilled</h3>
+      <div><h3>Needs fulfilled over six months</h3>
         <p>{scope} · {label(series[0].m, true)}–{label(period)}</p>
         <p className="atlas-comparison">{rows ? comparison(period, current, series[5].value, series[4].value) : 'Awaiting demo data.'}</p>
         {rows && series.some(point => point.value === null) && <p className="atlas-gap">— No citywide outcomes recorded.</p>}
@@ -149,7 +164,7 @@ export default function Atlas() {
         <span aria-label={label(m)}>{label(m, true)}</span>
       </li>)}</ol>
     </div>
-    <details className="atlas-table"><summary>Neighborhood totals and map sources</summary>
+    <section className="atlas-table" aria-labelledby="atlas-data-title"><h3 id="atlas-data-title">Neighborhood totals and map sources</h3>
       <div className="atlas-table-body"><p>Confirmed needs fulfilled in {label(period)}. Select a neighborhood to update the atlas.</p>
         <ul>{areas.map(name => <li key={name}><button type="button" aria-pressed={selected === name} onClick={() => setSelected(name)}>
           {name === 'Unknown' ? 'Unknown neighborhood' : name}<b>{rows ? counts?.[name] ?? 0 : '—'}</b>
@@ -158,6 +173,6 @@ export default function Atlas() {
         <p>Neighborhood boundaries from the <a href="https://milwaukeemaps.milwaukee.gov/arcgis/rest/services/AGO/neighborhoods/MapServer/0">City of Milwaukee</a>.
           Water features from the 2025 U.S. Census TIGER/Line files for <a href="https://www2.census.gov/geo/tiger/TIGER2025/AREAWATER/tl_2025_55079_areawater.zip">Milwaukee</a> and <a href="https://www2.census.gov/geo/tiger/TIGER2025/AREAWATER/tl_2025_55089_areawater.zip">Ozaukee</a> counties.</p>
       </div>
-    </details>
+    </section>
   </section>
 }

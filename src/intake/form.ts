@@ -5,8 +5,10 @@ export interface IntakeDraft {
   services: Service[]
   description: string
   neighborhood: string
-  method: ContactMethod
+  method: ContactMethod | ''
   contact: string
+  secondMethod?: ContactMethod | ''
+  secondContact?: string
   safeContact?: string
   agency?: string
   agencyReference?: string
@@ -22,13 +24,29 @@ export function validate(draft: IntakeDraft) {
   if (family && (draft.agency?.trim().length ?? 0) > 120) errors.agency = 'Keep the partner or agency name to 120 characters or fewer.'
   if (family && (draft.agencyReference?.trim().length ?? 0) > 80) errors.agencyReference = 'Keep the reference to 80 characters or fewer.'
   if (!draft.neighborhood) errors.neighborhood = 'Choose a neighborhood or select Unknown.'
-  const contact = draft.contact.trim()
-  if (draft.method === 'email') {
-    if (contact.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) errors.contact = 'Enter an email address such as resident@example.com.'
-  } else if (contact.length > 35 || !/^[+\d(). -]+$/.test(contact) || !/^\d{7,15}$/.test(contact.replace(/\D/g, ''))) {
-    errors.contact = 'Enter a phone number, including the area code.'
+  if (!['phone', 'text', 'email'].includes(draft.method)) {
+    errors.method = 'Choose how you want to be contacted first.'
+  } else {
+    const error = contactError(draft.method, draft.contact.trim())
+    if (error) errors.contact = error
+  }
+  if (draft.secondMethod) {
+    if (draft.secondMethod === draft.method || !['phone', 'text', 'email'].includes(draft.secondMethod)) {
+      errors.secondMethod = 'Choose a different second contact method.'
+    } else {
+      const error = contactError(draft.secondMethod, draft.secondContact?.trim() || '')
+      if (error) errors.secondContact = error
+    }
   }
   return errors
+}
+
+function contactError(method: ContactMethod | '', contact: string) {
+  if (method === 'email') {
+    if (contact.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) return 'Enter an email address such as resident@example.com.'
+  } else if (contact.length > 35 || !/^[+\d(). -]+$/.test(contact) || !/^\d{7,15}$/.test(contact.replace(/\D/g, ''))) {
+    return 'Enter a phone number, including the area code.'
+  }
 }
 
 // getRandomValues also works on a phone visiting the development laptop over HTTP.

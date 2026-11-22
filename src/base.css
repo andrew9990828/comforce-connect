@@ -1,17 +1,10 @@
 /* Shared typography, navigation and focus styles. Codex (GPT-6) implemented the responsive shell. */
 :root {
-  font-family: 'DM Sans Variable', 'Segoe UI', sans-serif;
+  font-family: var(--ui-font);
   font-size: 100%;
   line-height: 1.5;
   color: var(--ink);
   background: var(--ivory);
-  --lake: #133f53;
-  --teal: #08695e;
-  --ivory: #faf8f2;
-  --ink: #162f35;
-  --muted: #50636a;
-  --line: #d2dbd6;
-  --amber: #81520a;
   font-synthesis: none;
 }
 * { box-sizing: border-box; }
@@ -22,32 +15,31 @@ button { color: inherit; }
 button:disabled { cursor: wait; }
 a { color: var(--teal); }
 h1, h2, h3, p { margin-top: 0; }
-:focus-visible { outline: 3px solid #007caa; outline-offset: 3px; }
-.site-header { background: #fffefa; border-bottom: 1px solid var(--line); }
+:focus-visible { outline: 3px solid var(--muted); outline-offset: 3px; }
+.site-header { background: var(--surface); border-bottom: 1px solid var(--line); }
 .site-bar { max-width: 1280px; padding: 0 clamp(1rem, 4vw, 3.5rem); margin: auto; display: flex; align-items: center; gap: clamp(1rem, 4vw, 3.8rem); min-height: 76px; }
 .brand { display: inline-flex; align-items: center; gap: .72rem; color: var(--lake); font-size: 1.42rem; line-height: 1; font-weight: 820; letter-spacing: -.065em; text-decoration: none; white-space: nowrap; }
 .brand b { font-weight: 470; }
 .brand-mark { display: flex; align-items: center; justify-content: center; gap: 2px; width: 35px; height: 35px; border-radius: 9px 2px 9px 2px; background: var(--lake); }
-.brand-mark i { display: block; width: 5px; transform: skewY(-24deg); height: 13px; background: #fff9ed; }
-.brand-mark i:nth-child(2) { height: 21px; background: #7dd7c4; }
+.brand-mark i { display: block; width: 5px; transform: skewY(-24deg); height: 13px; background: var(--surface); }
+.brand-mark i:nth-child(2) { height: 21px; background: var(--line); }
 .brand-mark i:last-child { height: 17px; }
 .site-nav { display: flex; gap: clamp(.8rem, 2.5vw, 2.1rem); align-self: stretch; margin-left: auto; }
 .site-nav a { display: flex; align-items: center; min-height: 44px; font-size: .9rem; font-weight: 620; text-decoration: none; color: var(--muted); padding-top: 3px; border-bottom: 3px solid transparent; }
 .site-nav a[aria-current] { border-color: var(--teal); color: var(--lake); }
-.site-nav a:hover { color: var(--teal); }
-.staff-header { background: var(--lake); color: white; border: 0; }
+.staff-header { background: var(--lake); color: var(--surface); border: 0; }
 .staff-header .site-bar { gap: 1.15rem; }
-.staff-header .brand, .staff-header .site-nav a { color: #fbfaf2; }
-.staff-header .brand-mark { background: #28576a; }
-.staff-wordmark { border-left: 1px solid #7e9ca7; padding-left: 1rem; font-size: .98rem; }
+.staff-header .brand, .staff-header .site-nav a { color: var(--surface); }
+.staff-header .brand-mark { background: var(--muted); }
+.staff-wordmark { border-left: 1px solid var(--mid); padding-left: 1rem; font-size: .98rem; }
 .staff-header .site-nav { align-items: center; }
-.staff-header .site-nav a[aria-current] { border-color: #7ed9bf; }
-.staff-header .site-nav .staff-log { background: #d8f4df; color: #103b40; min-height: 44px; padding: .6rem 1.05rem; border: 0; border-radius: 5px; }
-.staff-header .site-nav .public-crosslink { color: #d4e2e3; }
+.staff-header .site-nav a[aria-current] { border-color: var(--line); }
+.staff-header .site-nav .staff-log { background: var(--wash); color: var(--ink); min-height: 44px; padding: .6rem 1.05rem; border: 0; border-radius: 5px; }
+.staff-header .site-nav .public-crosslink { color: var(--wash); }
 .site-footer { border-top: 1px solid var(--line); color: var(--muted); padding: 1.25rem max(4vw, calc((100% - 1152px) / 2)); display: flex; justify-content: space-between; gap: 1rem; font-size: .83rem; }
-.skip-link { position: absolute; left: 1rem; top: -8rem; background: white; padding: .8rem; z-index: 30; }
+.skip-link { position: absolute; left: 1rem; top: -8rem; background: var(--surface); padding: .8rem; z-index: 30; }
 .skip-link:focus { top: 1rem; }
-.setup-notice { padding: .65rem 4vw; background: #fff1d4; color: #664311; font-size: .92rem; }
+.setup-notice { padding: .65rem 4vw; background: var(--surface); color: var(--ink); font-size: .92rem; }
 .missing-page { max-width: 70rem; margin: 4rem auto; padding: 0 1rem; }
 @media (max-width: 760px) {
   .site-bar { min-height: 64px; gap: .8rem; }

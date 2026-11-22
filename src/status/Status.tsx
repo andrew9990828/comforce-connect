@@ -1,5 +1,6 @@
 // Resident request status page. Contributor: asherjaenchen. AI assistance: Claude Opus 5.5 built the lookup form and tracker.
 import { useRef, useState, type FormEvent } from 'react'
+import { route } from '../preview/location'
 import { supabase } from '../supabase'
 import { isStaffMode, residentToken } from '../workspace'
 import { serviceLabels } from '../services'
@@ -96,7 +97,7 @@ export default function Status() {
       <aside className="intake-aside"><h2>In danger right now?</h2>
         <p>Call <strong>911</strong>. For a mental health crisis, call or text <strong>988</strong>.</p>
         <p>This page shows progress only. Your notes and contact details are never shown here.</p>
-        <p><a href="/request">Make a new request</a></p>
+        <p><a href={route('/request')}>Make a new request</a></p>
       </aside>
     </div>
   </main>

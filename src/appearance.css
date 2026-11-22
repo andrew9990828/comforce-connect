@@ -1,0 +1,155 @@
+/* Ice Blue & Navy surfaces and shared typography for the field guide. */
+:root {
+  --ui-font: "DM Sans Variable", sans-serif;
+  --ground: #e9f4fb;
+  --accent: #103459;
+  --surface: #fbfdff;
+  --teal: #185e96;
+  --sea: #9fc9e5;
+  --sea-light: #e1f3ff;
+  --land-light: #f9fdff;
+  --land-dark: #a8cadd;
+  --map-edge: #6c99b8;
+  --pin: #bd781c;
+  color-scheme: light;
+  --ivory: var(--ground);
+  --ink: var(--accent);
+  --lake: var(--accent);
+  --amber: var(--accent);
+  --wash: color-mix(in srgb, var(--ground) 93%, var(--accent));
+  --line: color-mix(in srgb, var(--ground) 73%, var(--accent));
+  --mid: color-mix(in srgb, var(--ground) 48%, var(--accent));
+  --muted: color-mix(in srgb, var(--ground) 18%, var(--accent));
+  --shadow: color-mix(in srgb, var(--ground) 18%, transparent);
+  --curve: 14px;
+  accent-color: var(--accent);
+}
+.site-header { background: color-mix(in srgb,var(--surface) 92%,transparent); }
+.site-bar { min-height: 66px; max-width: 1360px; }
+.brand-mark { border-radius: 11px; background:var(--lake); }
+.brand-mark i:nth-child(2) { background:var(--land-dark); }
+.site-nav { align-items:center; gap:.35rem; }
+.site-nav a, .staff-header .site-nav .staff-log { min-height:40px; border:0; border-radius:12px; padding:.6rem .95rem; }
+.site-nav a[aria-current] { background:var(--wash); }
+.staff-header {background:var(--lake);}
+.staff-header .site-nav a[aria-current],.staff-header .site-nav .staff-log { background:var(--wash); color:var(--lake); }
+html .impact-page {max-width:960px;--atlas-paper:var(--surface);--atlas-type:var(--lake);--atlas-rule:var(--line);--atlas-serif:inherit;padding-top:clamp(1rem,2.4vw,2.2rem);}
+html .impact-reach,html .impact-program,html .impact-history,html .atlas-board,html .intake-form,html .intake-receipt,html .intake-aside,html .team-queue {background:var(--surface);border:1px solid var(--line);border-radius:var(--curve);box-shadow:0 6px 25px var(--shadow);}
+html .impact-reach,html .impact-program,html .impact-history {padding:clamp(1.2rem,2.5vw,2.4rem);}
+html .impact-reach {grid-area:reach;margin:0;}
+html .impact-reach dl {margin-top:1rem;}
+html .impact-reach dd,html .impact-history dd:not(.history-link) {font-family:inherit;font-weight:640;}
+html .impact-reach dd a {text-decoration:none;}
+html .impact-reach dd a:hover {text-decoration:underline;}
+html .impact-program,html .intake-aside {background:var(--wash);color:var(--lake);}
+html .impact-program h2,html .impact-history h2,html .atlas-heading h2 {font-family:inherit;font-weight:630;}
+html .impact-program p a {color:var(--teal);}
+html .atlas-heading {padding-top:1.35rem;}
+html .atlas-month,html .atlas-readout {border-radius:12px;}
+html .atlas-board .atlas-heading .impact-kicker {color:var(--surface);opacity:.8;}
+html .impact-history {margin-top:1.25rem;}
+html .intake-page h1 {font-size:clamp(2.6rem,5vw,4.6rem);line-height:1.02;font-family:inherit;font-weight:650;}
+html .intake-block > :is(input,textarea,select),html .service-option,html .team-page :is(input,select),html .team-dialog :is(input,textarea,select) {border-radius:12px;}
+html .service-option:has(:checked) {background:var(--teal);border-color:var(--teal);}
+html .intake-submit,html .team-primary,html .team-secondary,html .team-filter-toggle,html .team-next-action {border-radius:12px;}
+html .team-page,html .team-dialog {--staff-paper:var(--surface);--staff-tint:var(--wash);}
+html .team-columns {background:var(--wash);color:var(--lake);}
+html .team-next-action {color:var(--teal);border-color:var(--line);}
+html .team-dialog {border-radius:var(--curve);}
+
+.home-page {
+  letter-spacing: .012em;
+  max-width: 1240px;
+  margin: auto;
+  padding: clamp(2.5rem,6vw,6rem) clamp(1.25rem,5vw,4.25rem);
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: clamp(2rem,7vw,6rem);
+  align-items: center;
+}
+.home-copy h1, html .report-title, html .intake-page h1, html .team-page h1 {
+  font-family: var(--ui-font);
+  font-weight: 600;
+  letter-spacing: -.045em;
+  line-height: 1;
+  color: var(--lake);
+}
+.home-copy h1 { letter-spacing: -.02em; font-size: clamp(4.3rem,8vw,7.6rem); margin: 0; }
+.home-copy > p { color: var(--muted); font-size: 1.12rem; max-width: 32ch; margin: 1.2rem 0 1.8rem; }
+.home-choices { display: grid; }
+.home-choices a {
+  display: flex; justify-content: space-between; gap: 1rem; align-items: center;
+  padding: .9rem .2rem; color: var(--lake); border-bottom: 1px solid var(--line);
+  font: 400 clamp(1.23rem,1.9vw,1.6rem)/1.2 var(--ui-font); text-decoration: none;
+}
+.home-choices a:first-child { background: var(--lake); color: var(--surface); padding-inline: 1.1rem; border-radius: 10px; }
+.home-choices a span { font-family: var(--ui-font); }
+.home-page .shoreline {
+  aspect-ratio: 4 / 5; overflow: hidden;
+  border-radius: 48% 48% 12px 12px;
+  background: radial-gradient(ellipse at 25% 35%,var(--sea-light),var(--sea));
+}
+.shoreline svg { display: block; width: 100%; height: 100%; }
+.site-nav a, .staff-wordmark { font: 400 1.05rem/1.3 var(--ui-font); }
+.site-footer { align-items: center; }
+html .report-title { font-size: clamp(2.7rem,5vw,4.7rem); margin: .4rem 0 1.6rem; }
+html .impact-program h2, html .impact-history h2, html .atlas-heading h2, html .team-dialog h2 {
+  font-family: var(--ui-font); font-weight: 600; letter-spacing: -.025em;
+}
+html .intake-aside summary { cursor: pointer; font: 400 1.3rem var(--ui-font); }
+.intake-aside[open] summary { margin-bottom: 1rem; }
+
+@media(max-width:640px) {
+  .home-page { grid-template-columns: 1fr; gap: 2rem; padding-block: 2rem; }
+  .home-copy h1 { font-size: clamp(3.6rem,13vw,5rem); }
+  .home-copy h1 br { display: none; }
+  .home-page .shoreline { aspect-ratio: 2.3; border-radius: 12px; }
+  .site-header:not(.staff-header) .site-bar { flex-wrap: wrap; gap:.35rem; padding-block:.45rem; }
+  .site-header:not(.staff-header) .site-nav { flex-basis:auto; }
+  .site-nav a { padding-inline:.55rem; }
+}
+
+html .atlas-month select, html .atlas-readout select { appearance: auto; background-image: none; }
+html .atlas-readout { background: var(--surface); }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
+
+.home-neighborhoods { grid-column: 1 / -1; padding-block: clamp(1rem,3vw,3rem); }
+.home-neighborhoods h2 { margin: 0 0 .5rem; font-size: clamp(1.8rem,3.7vw,3rem); line-height: 1.1; letter-spacing: -.02em; }
+.home-neighborhoods p { color: var(--muted); }
+.home-neighborhoods nav { display: flex; flex-wrap: wrap; gap: .55rem; }
+.home-neighborhoods a, .home-choices a {
+  border: 0; background: var(--surface); color: var(--ink); border-radius: 12px;
+  padding: .78rem 1.15rem; text-decoration: none;
+}
+.home-choices { gap: .6rem; }
+.home-choices a:first-child { border-radius: 12px; }
+.home-page .shoreline { border-radius: 18px; }
+
+.home-neighborhoods nav, .home-choices a { justify-content: center; }
+.home-neighborhoods { text-align: center; }
+
+.site-bar { flex-wrap: wrap; row-gap: .4rem; padding-block: .4rem; }
+
+.public-chat button {
+  width: 44px; height: 44px; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface); color: var(--lake); cursor: pointer;
+
+}
+.public-chat { position: relative; z-index: 6; transform-origin: top left; }
+.public-chat.floating {
+  position: fixed;
+  right: calc(1rem + env(safe-area-inset-right));
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+.public-chat.floating .chat-trigger {
+  width: 52px; height: 52px; touch-action: pan-y;
+  border-radius: 16px; box-shadow: var(--lens-edge);
+}
+.public-chat .chat-dismiss {
+  position: absolute; top: -13px; right: -9px;
+  width: 26px; height: 26px; padding: 0; border-radius: 50%;
+  font-size: 1rem; line-height: 1;
+}
+
+.site-nav[aria-label="Public navigation"] { flex-wrap: wrap; }

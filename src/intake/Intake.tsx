@@ -3,8 +3,10 @@
 // Claude (Opus 5.5) added pre-fill from the community assistant.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { draftEvent, takeDraft } from '../assistant/draft'
+import { preview, route } from '../preview/location'
 import { supabase } from '../supabase'
-import { isStaffMode, residentToken, staffContext } from '../workspace'
+import { ExpiredPairing, pairingRejected, isStaffMode, residentToken, staffContext } from '../workspace'
+import ResidentRepair from '../ResidentRepair'
 import { neighborhoods } from '../impact/neighborhoods'
 import { serviceLabels, type Service } from '../services'
 import { submissionKey, validate, type ContactMethod, type IntakeDraft } from './form'
@@ -15,10 +17,14 @@ const staffEntry = entry === 'call' || entry === 'text'
 const contactLabels = { phone: 'Call', text: 'Text', email: 'Email' } as const
 
 export default function Intake() {
-  const [selected, select] = useState<Service[]>(() => new URLSearchParams(location.search).get('service') === 'family_support' ? ['family_support'] : [])
+  const [selected, select] = useState<Service[]>(() => {
+    const service = new URLSearchParams(location.search).get('service')
+    return service && Object.hasOwn(serviceLabels, service) ? [service as Service] : []
+  })
   const [description, describe] = useState('')
   const [neighborhood, locate] = useState('')
-  const [method, prefer] = useState<ContactMethod>('text')
+  const [method, prefer] = useState<IntakeDraft['method']>('')
+  const [secondMethod, setSecondMethod] = useState<IntakeDraft['method']>('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [safeContact, setSafeContact] = useState('')
@@ -27,11 +33,14 @@ export default function Intake() {
   const [source, setSource] = useState(staffEntry ? entry : 'web')
   const [key] = useState(submissionKey)
   const [errors, setErrors] = useState<ReturnType<typeof validate>>({})
+  const [expired, setExpired] = useState(false)
   const [failed, setFailed] = useState('')
   const [saving, setSaving] = useState(false)
-  const [receipt, setReceipt] = useState<{ reference: string; needs: Service[]; method: ContactMethod } | null>(null)
+  const [receipt, setReceipt] = useState<{ reference: string; needs: Service[]; method: ContactMethod; secondMethod: IntakeDraft['method'] } | null>(null)
   const busy = useRef(false)
   const contact = method === 'email' ? email : phone
+  const secondContact = secondMethod === 'email' ? email : phone
+  const sameNumber = method && secondMethod && method !== 'email' && secondMethod !== 'email'
   const family = selected.includes('family_support')
   const submitted = useRef(false)
   submitted.current = !!receipt
@@ -40,7 +49,7 @@ export default function Intake() {
   useEffect(() => {
     if (staffEntry) return
     function apply() {
-      if (submitted.current) { location.assign('/request'); return }
+      if (submitted.current) { location.assign(route('/request')); return }
       const draft = takeDraft()
       if (!draft) return
       select(draft.services)
@@ -66,7 +75,7 @@ export default function Intake() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy.current) return
-    const problems = validate({ services: selected, description, neighborhood, method, contact, safeContact, agency, agencyReference })
+    const problems = validate({ services: selected, description, neighborhood, method, contact, secondMethod, secondContact, safeContact, agency, agencyReference })
     setErrors(problems)
     setFailed('')
     const first = Object.keys(problems)[0]
@@ -76,6 +85,13 @@ export default function Intake() {
       else if (input instanceof RadioNodeList) (input[0] as HTMLElement).focus()
       return
     }
+    if (!method) return
+    if (preview) {
+      if (staffEntry) { location.assign(route('/team')); return }
+      setReceipt({ reference: 'MKE-PREVIEW', needs: [...selected], method, secondMethod })
+      window.scrollTo(0, 0)
+      return
+    }
     busy.current = true
     setSaving(true)
     try {
@@ -83,10 +99,12 @@ export default function Intake() {
       const result = await supabase.rpc('submit_request', {
         p_key: key, p_services: selected, p_description: description.trim(),
         p_neighborhood: neighborhood, p_contact_method: method, p_contact: contact.trim(), p_source: source,
+        ...(secondMethod && { p_second_method: secondMethod, p_second_contact: secondContact.trim() }),
         p_token: token,
         p_family: family ? { support: description.trim(), safe_contact: safeContact.trim(), agency: agency.trim(), agency_reference: agencyReference.trim() } : null,
       })
       if (result.error || !result.data) {
+        if (!staffEntry && result.error && pairingRejected(token, result.status, result.error.code)) throw new ExpiredPairing()
         if (result.error?.code === '42501' && staffEntry) {
           setFailed('Sign in to the team workspace to log a call or text. Your entries are still here.')
           return
@@ -99,10 +117,11 @@ export default function Intake() {
         location.replace('/team?' + params)
         return
       }
-      setReceipt({ reference: result.data, needs: [...selected], method })
+      setReceipt({ reference: result.data, needs: [...selected], method, secondMethod })
       window.scrollTo(0, 0)
-    } catch {
-      setFailed('We could not confirm your request. Your entries are still here. Check your connection and submit again.')
+    } catch (error) {
+      if (error instanceof ExpiredPairing) setExpired(true)
+      else setFailed('We could not confirm your request. Your entries are still here. Check your connection and submit again.')
     } finally {
       busy.current = false
       setSaving(false)
@@ -116,31 +135,33 @@ export default function Intake() {
         <h1 id="receipt-title" tabIndex={-1} ref={el => el?.focus()}>Request received</h1>
         <h2>Help you requested</h2><ul className="receipt-needs">{receipt.needs.map(id => <li key={id}>{serviceLabels[id]}</li>)}</ul>
         <h2>What happens next</h2><p>The demo team can review each need and follow up by {{ phone: 'phone', text: 'text', email: 'email' }[receipt.method]} to arrange direct help or a partner referral.</p>
+        {receipt.secondMethod && <p>Second-choice contact method: {contactLabels[receipt.secondMethod]}.</p>}
         {receipt.needs.includes('family_support') && <p>Family support includes checking in with you. This form does not file an official missing-person report or dispatch assistance.</p>}
         <h2>Check your progress</h2><p>Save your reference. You can see each need’s progress any time with it and {receipt.method === 'email' ? 'your email address' : 'the last 4 digits of your phone number'}.</p>
-        <p className="receipt-actions"><a className="intake-next" href={'/status?ref=' + encodeURIComponent(receipt.reference)}>Check request status</a>
-          <a className="receipt-secondary" href="/">View community impact</a></p>
+        <p className="receipt-actions"><a className="intake-next" href={route('/status?ref=' + encodeURIComponent(receipt.reference))}>Check request status</a>
+          <a className="receipt-secondary" href={route('/impact')}>View community impact</a></p>
       </div>
     </article>
   </main>
 
   return <main className="intake-page">
-    <div className="intake-intro"><p className="intake-kicker">{staffEntry ? 'Staff intake' : 'Request help'} <span> / </span> Fictional demo</p>
-      <h1>{staffEntry ? 'Log a request' : 'What do you need help with?'}</h1>
-      <p>Choose all the help needed. Use fictional details for this demo.</p></div>
-    <div className="intake-layout">
+    <div className="intake-intro"><h1>{staffEntry ? 'Log a request' : family ? 'Request family support' : 'What do you need help with?'}</h1>
+      <p className="intake-followup"><strong>{staffEntry
+        ? (preview ? 'After you finish, you can preview the team queue.' : 'After you save, the case opens in your queue with all its needs together.')
+        : 'After you submit, you’ll receive one reference number for everything you select.'}</strong>
+        {' '}The team can arrange direct help for one need and refer another to a partner.</p></div>
       <form className="intake-form" onSubmit={submit} noValidate aria-label="Request help" aria-busy={saving}>
         <fieldset disabled={saving} className="intake-fields">
           {staffEntry && <div className="intake-block"><label htmlFor="source">How did the request come in?</label>
             <select id="source" value={source || 'call'} onChange={e => setSource(e.target.value)}>
               <option value="call">Phone call</option><option value="text">Text message</option>
             </select></div>}
-          <fieldset className="intake-block"><legend>Services needed</legend>
+          <fieldset className="intake-block"><legend>Services needed (select all that apply)</legend>
             <div className="service-options">{Object.entries(serviceLabels).map(([id, label]) =>
               <label className="service-option" key={id}><input type="checkbox" name="services" value={id}
                 checked={selected.includes(id as Service)} aria-invalid={!!errors.services} aria-describedby={describedBy('services')}
                 onChange={e => { clearError('services'); select(e.target.checked ? [...selected, id as Service] : selected.filter(s => s !== id)) }}/>{label}</label>,
-            )}</div><p className="intake-selection" aria-live="polite">{selected.length ? selected.map(id => serviceLabels[id]).join(' · ') : 'You can select more than one.'}</p>{message('services')}</fieldset>
+            )}</div>{message('services')}</fieldset>
           {family && <p className="family-notice">The Missing Persons Network can support the family and coordinate follow-up. This form does not file an official missing-person report or dispatch assistance.</p>}
           <div className="intake-block"><label htmlFor="description">{family ? 'What support would help your family?' : 'Description'}</label>
             <textarea id="description" name="description" rows={3} maxLength={family ? 500 : 800} placeholder={family ? 'For example, a family check-in and a ride to a meeting.' : 'For example, groceries and a ride to an appointment.'}
@@ -162,23 +183,43 @@ export default function Intake() {
               onChange={e => { locate(e.target.value); clearError('neighborhood') }}><option value="">Select a neighborhood</option>
               <option value="Unknown">Unknown / unsure</option>{neighborhoods.map(name => <option key={name}>{name}</option>)}</select>
             {message('neighborhood')}</div>
-          <fieldset className="intake-block"><legend>Preferred contact method</legend>
-            <div className="contact-options">{(Object.keys(contactLabels) as ContactMethod[]).map(value =>
-              <label key={value}><input type="radio" name="method" checked={method === value} onChange={() => { prefer(value); clearError('contact') }}/>{contactLabels[value]}</label>,
-            )}</div></fieldset>
-          <div className="intake-block"><label htmlFor="contact">{method === 'email' ? 'Email address' : 'Phone number'}</label>
+          <div className="intake-block"><label htmlFor="method">First-choice contact method (required)</label>
+            <select id="method" name="method" required value={method} aria-invalid={!!errors.method} aria-describedby={describedBy('method')}
+              onChange={e => {
+                const next = e.target.value as ContactMethod
+                prefer(next)
+                if (next === secondMethod) setSecondMethod('')
+                clearError('method'); clearError('contact'); clearError('secondContact')
+              }}>
+              <option value="" disabled>Choose how to contact you first</option>
+              {Object.entries(contactLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>{message('method')}</div>
+          {method && <div className="intake-block"><label htmlFor="contact">{method === 'email' ? 'Email address' : 'Phone number'}</label>
             <input id="contact" name="contact" type={method === 'email' ? 'email' : 'tel'} autoComplete="off" maxLength={method === 'email' ? 254 : 35} required
               placeholder={method === 'email' ? 'resident@example.com' : '(414) 555-0100'} value={contact} aria-invalid={!!errors.contact} aria-describedby={describedBy('contact')}
-              onChange={e => { (method === 'email' ? setEmail : setPhone)(e.target.value); clearError('contact') }}/>
-            {message('contact')}</div>
+              onChange={e => { (method === 'email' ? setEmail : setPhone)(e.target.value); clearError('contact'); if (sameNumber) clearError('secondContact') }}/>
+            {message('contact')}</div>}
+          {method && <div className="intake-block"><label htmlFor="secondMethod">Second-choice contact method (optional)</label>
+            <select id="secondMethod" name="secondMethod" value={secondMethod}
+              onChange={e => { setSecondMethod(e.target.value as IntakeDraft['method']); clearError('secondMethod'); clearError('secondContact') }}>
+              <option value="">No second choice</option>
+              {Object.entries(contactLabels).filter(([value]) => value !== method).map(([value, label]) =>
+                <option key={value} value={value}>{label}</option>)}
+            </select>{message('secondMethod')}
+            {sameNumber && <p>We’ll use the same phone number for calls and texts.</p>}
+          </div>}
+          {secondMethod && !sameNumber && <div className="intake-block">
+            <label htmlFor="secondContact">Second-choice {secondMethod === 'email' ? 'email address' : 'phone number'}</label>
+            <input id="secondContact" name="secondContact" type={secondMethod === 'email' ? 'email' : 'tel'}
+              value={secondContact} required maxLength={secondMethod === 'email' ? 254 : 35}
+              aria-invalid={!!errors.secondContact} aria-describedby={describedBy('secondContact')}
+              onChange={e => { (secondMethod === 'email' ? setEmail : setPhone)(e.target.value); clearError('secondContact') }}/>
+            {message('secondContact')}</div>}
+          {expired && <ResidentRepair onPaired={() => setExpired(false)}/>}
           {failed && <p className="intake-error submit-error" role="alert">{failed}</p>}
-          <button type="submit" className="intake-submit">{saving ? 'Saving request…' : staffEntry ? 'Save and open case' : 'Submit request'}</button>
+          <p className="intake-hint">{preview ? 'Use fictional details. Preview entries are never saved.' : 'Use fictional details for this demo.'}</p>
+          <button type="submit" disabled={expired} className="intake-submit">{saving ? 'Saving request…' : staffEntry ? (preview ? 'Preview queue' : 'Save and open case') : 'Submit request'}</button>
         </fieldset>
       </form>
-      <aside className="intake-aside"><h2>{staffEntry ? 'After you save' : 'After you submit'}</h2>
-        <p>{staffEntry ? 'The case opens in your queue with all its needs together.' : 'You’ll receive one reference number covering everything you select.'}</p>
-        <p>The team can arrange direct help for one need and refer another to a partner.</p>
-      </aside>
-    </div>
   </main>
 }

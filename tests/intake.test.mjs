@@ -12,6 +12,9 @@ test('invalid fields have individual errors', () => {
   const errors = validate({ ...draft, services: [], description: ' ', neighborhood: '', contact: 'abc5550103' })
   assert.deepEqual(Object.keys(errors), ['services', 'description', 'neighborhood', 'contact'])
 })
+test('a contact number alone does not supply the required first choice', () => {
+  assert.deepEqual(Object.keys(validate({ ...draft, method: '' })), ['method'])
+})
 test('only the selected contact method is validated', () => {
   assert.ok(validate({ ...draft, method: 'email' }).contact)
   assert.deepEqual(validate({ ...draft, method: 'email', contact: 'student@example.org' }), {})
@@ -27,4 +30,13 @@ test('HTTP LAN submissions have distinct version 4 UUIDs', () => {
   const keys = Array.from({ length: 50 }, submissionKey)
   for (const key of keys) assert.match(key, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   assert.equal(new Set(keys).size, keys.length)
+})
+
+test('second choice is optional, distinct and requires matching contact details', () => {
+  assert.deepEqual(validate({ ...draft, secondMethod: '', secondContact: 'unused' }), {})
+  assert.ok(validate({ ...draft, secondMethod: 'text', secondContact: draft.contact }).secondMethod)
+  assert.ok(validate({ ...draft, secondMethod: 'email' }).secondContact)
+  assert.ok(validate({ ...draft, secondMethod: 'email', secondContact: draft.contact }).secondContact)
+  assert.deepEqual(validate({ ...draft, secondMethod: 'email', secondContact: 'resident@example.invalid' }), {})
+  assert.deepEqual(validate({ ...draft, secondMethod: 'phone', secondContact: draft.contact }), {})
 })
